@@ -111,7 +111,7 @@ class Register:
                 await self.bot.say("I cannot create a role. Please assign Manage Roles to me!")
         role = discord.utils.get(server.roles, name=role_name)
         # --- DONE CREATING ROLE! ---
-        add_server_to_json(server)
+        self.add_server_to_json(server)
         # --- ADDING ROLE TO JSON ---
         try:
             if role.id not in self.json[server.id]:
@@ -159,7 +159,7 @@ class Register:
     '''@regedit.command(name="delcmds", pass_context=True, no_pm=True)
     async def _regedit_delcmds(self, ctx):
         """Toggles whether or not a the !register command is deleted after being sent."""
-        add_server_to_json(server)'''
+        self.add_server_to_json(server)'''
         
     def add_server_to_json(server):
         if server.id not in self.json:
