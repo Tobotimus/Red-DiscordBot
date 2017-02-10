@@ -46,6 +46,9 @@ class Register:
         Example usage: !register PC"""
         server = ctx.message.server
         user = ctx.message.author
+        channel = ctx.message.channel
+        if self.json[server.id]["whisper"]:
+            channel = user
         if role_name:
             # --- CHECK VALID ROLE ---
             try:
@@ -59,20 +62,20 @@ class Register:
                     else:
                         # --- REMOVE FROM USER ---
                         await self.bot.remove_roles(user, role)
-                        await self.bot.send_message(user, '{} role has been removed from you in {}!'.format(role.name, server.name))
+                        await self.bot.send_message(channel, '{} role has been removed from you in {}!'.format(role.name, server.name))
                 else:
                     # ROLE NOT IN REGISTER
-                    await self.bot.send_message(user, 'You can\'t register for {} in {}.'.format(role.name, server.name))
+                    await self.bot.send_message(channel, 'You can\'t register for {} in {}.'.format(role.name, server.name))
             except:
                 # ROLE NOT IN SERVER
-                await self.bot.send_message(user, '{} isn\'t a role in {}.'.format(role_name, server.name))
+                await self.bot.send_message(channel, '{} isn\'t a role in {}.'.format(role_name, server.name))
         else:
             # NO ROLE GIVEN
-            # --- PM USER HELP MESSAGE ---
+            # --- SEND HELP MESSAGE ---
             pages = self.bot.formatter.format_help_for(ctx, ctx.command)
             for page in pages:
-                await self.bot.send_message(user, page)
-            # --- PM USER VALID ROLES ---
+                await self.bot.send_message(channel, page)
+            # --- SEND VALID ROLES ---
             if server.id in self.json:
                 valid_roles = []
                 for r in self.json[server.id]["roles"]:
@@ -87,11 +90,12 @@ class Register:
                         "{}"
                         "".format(server.name, ", ".join(sorted(valid_roles)))
                         )
-                await self.bot.send_message(user, box(msg))
+                await self.bot.send_message(channel, box(msg))
             else:
                 msg = "There aren't any roles you can register for in {}".format(server.name)
-                await self.bot.send_message(user, box(msg))
-        await self.bot.delete_message(ctx.message)
+                await self.bot.send_message(channel, box(msg))
+        if self.json[server.id]["delcmds"]:
+            await self.bot.delete_message(ctx.message)
 
     @commands.group(pass_context=True, no_pm=True)
     @checks.admin_or_permissions(administrator=True)
@@ -180,45 +184,42 @@ class Register:
             msg = 'There aren\'t any roles you can register for in this server.'.format(server.name)
             await self.bot.say(box(msg))
 
-    # TODO : FINISH DELCMDS
-    # @regedit.command(name="delcmds", pass_context=True, no_pm=True)
-    # async def _regedit_delcmds(self, ctx):
-        # """Toggles whether or not the !register command is deleted after being sent.
-        # Note: This forces WHISPER to be set to ON."""
-        # server = ctx.message.server
-        # self.json_server_check(server)
-        # self.json[server.id]["delcmds"] = not self.json[server.id]["delcmds"]
-        # if self.json[server.id]["delcmds"]:
-            # await self.bot.say("Register commands will now be deleted after sending. Please make sure I have permissions to manage messages!")
-            # if not self.json[server.id]["whisper"]:
-                # self.json[server.id]["whisper"] = True
-                # await self.bot.say("I will now respond to register commands via DM.")
-        # else:
-            # await self.bot.say("Register commands will no longer be deleted after sending.")
-        # dataIO.save_json(self.location, self.json)
+    @regedit.command(name="delcmds", pass_context=True, no_pm=True)
+    async def _regedit_delcmds(self, ctx):
+        """Toggles whether or not !register is deleted
+        Note: This forces WHISPER to be set to ON."""
+        server = ctx.message.server
+        self.json_server_check(server)
+        self.json[server.id]["delcmds"] = not self.json[server.id]["delcmds"]
+        if self.json[server.id]["delcmds"]:
+            await self.bot.say("Register commands will now be deleted after sending.")
+            if not self.json[server.id]["whisper"]:
+                self.json[server.id]["whisper"] = True
+                await self.bot.say("I will now respond to register commands via DM.")
+        else:
+            await self.bot.say("Register commands will no longer be deleted after sending.")
+        dataIO.save_json(self.location, self.json)
         
-    # TODO : FINISH WHISPER
-    # @regedit.command(name="whisper", pass_context=True, no_pm=True)
-    # async def _regedit_whisper(self, ctx):
-        # """Toggles whether or not I respond to register commands via DM.
-        # NOTE: Is always set to ON whilst DELCMDS is set to ON."""
-        # server = ctx.message.server
-        # self.json_server_check(server)
-        # if self.json[server.id]["delcmds"]:
-            # await self.bot.say("DELCMDS is ON! Please use !regedit delcmds to toggle off before toggling WHISPER off.")
-        # else:
-            # self.json[server.id]["whisper"] = not self.json[server.id]["whisper"]
-            # if self.json[server.id]["whisper"]:
-                # await self.bot.say("I will now respond to register commands via DM.")
-            # else:
-                # await self.bot.say("I will no longer respond to register commands via DM.")
+    @regedit.command(name="whisper", pass_context=True, no_pm=True)
+    async def _regedit_whisper(self, ctx):
+        """Toggles whether or not I respond to register commands via DM.
+        NOTE: Is always set to ON whilst DELCMDS is set to ON."""
+        server = ctx.message.server
+        self.json_server_check(server)
+        if self.json[server.id]["delcmds"]:
+            await self.bot.say("DELCMDS is ON! Please use !regedit delcmds to toggle off before toggling WHISPER off.")
+        else:
+            self.json[server.id]["whisper"] = not self.json[server.id]["whisper"]
+            if self.json[server.id]["whisper"]:
+                await self.bot.say("I will now respond to register commands via DM.")
+            else:
+                await self.bot.say("I will no longer respond to register commands via DM.")
         
     def json_server_check(self, server):
         if server.id not in self.json:
                 log.debug('Adding server({}) in Json'.format(server.id))
                 self.json[server.id] = default_settings
                 dataIO.save_json(self.location, self.json)
-
         
 def check_folder():
     if not os.path.exists('data/register'):
