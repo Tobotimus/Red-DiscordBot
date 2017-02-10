@@ -59,7 +59,17 @@ class Trivia:
             self.settings["TRIVIA_BOT_PLAYS"] = True
             await self.bot.say("I'll gain a point everytime you don't answer in time.")
         dataIO.save_json(self.file_path, self.settings)
-
+    
+    @triviaset.command()
+    async def payout(self, amount : int):
+        """Amount to pay to winner"""
+        if amount > 0:
+            self.settings["TRIVIA_PAYOUT"] = amount
+            dataIO.save_json(self.file_path, self.settings)
+            await self.bot.say("Winner will recieve {} credits".format(str(amount)))
+        else:
+            await self.bot.say("Payout must be greater than 0")
+            
     @commands.command(pass_context=True)
     async def trivia(self, ctx, list_name : str=None):
         """Start a trivia session with the specified list
@@ -153,11 +163,12 @@ class TriviaSession():
         if self.score_list:
             await self.send_table()
             # Award winner with 250 credits
+            payout = self.settings["TRIVIA_PAYOUT"]
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])   #Winner name
             if user.name != trivia_manager.bot.user.name:
                 try:
-                    bank.deposit_credits(user, 250)
+                    bank.deposit_credits(user, payout)
                     await trivia_manager.bot.say("{} has won 250 credits for placeing first! Congratulations!".format(user.mention))
                 except:
                     await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
@@ -304,7 +315,7 @@ def check_folders():
 
 
 def check_files():
-    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False}
+    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False, "TRIVIA_PAYOUT" : 250}
 
     if not os.path.isfile("data/trivia/settings.json"):
         print("Creating empty settings.json...")
