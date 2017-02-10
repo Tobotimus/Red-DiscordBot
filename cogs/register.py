@@ -11,9 +11,27 @@ import os
 import copy
 
 log = logging.getLogger('red.register')
+default_settings = {
+    "roles"     : {},
+    "whisper"   : False,
+    "delcmds"   : False
+}
 
 class Register:
     """Allows users to register for certain roles."""
+    
+    # --- Format
+    # {
+    # Server : {
+    #   Roles: {
+    #     RoleIDs: {
+    #       RoleName: 
+    #     }
+    #   }
+    #   Whisper:
+    #   DeleteCmds: 
+    # }
+    # ---
     
     def __init__(self, bot):
         self.bot = bot
@@ -29,36 +47,41 @@ class Register:
         server = ctx.message.server
         user = ctx.message.author
         if role_name:
-            # --- CHECKING VALID ROLE ---
+            # --- CHECK VALID ROLE ---
             try:
                 role = discord.utils.get(server.roles, name=role_name)
-                if role.id in self.json[server.id]:
-                    # --- VALID ROLE! ---
-                    # --- ADD TO USER ---
+                if role.id in self.json[server.id]["roles"]:
+                    # VALID ROLE!
                     if role not in user.roles:
+                        # --- ADD TO USER ---
                         await self.bot.add_roles(user, role)
                         await self.bot.send_message(user, '{} role has been assigned to you in {}!'.format(role.name, server.name))
-                    # --- REMOVE FROM USER ---
                     else:
+                        # --- REMOVE FROM USER ---
                         await self.bot.remove_roles(user, role)
                         await self.bot.send_message(user, '{} role has been removed from you in {}!'.format(role.name, server.name))
+                else:
+                    # ROLE NOT IN REGISTER
+                    await self.bot.send_message(user, 'You can\'t register for {} in {}.'.format(role.name, server.name))
             except:
-                await self.bot.say('That role isn\'t in this server.')
+                # ROLE NOT IN SERVER
+                await self.bot.send_message(user, '{} isn\'t a role in {}.'.format(role_name, server.name))
         else:
             # NO ROLE GIVEN
-            # PM USER HELP MESSAGE
+            # --- PM USER HELP MESSAGE ---
             pages = self.bot.formatter.format_help_for(ctx, ctx.command)
             for page in pages:
                 await self.bot.send_message(user, page)
-            # PM USER VALID ROLES
+            # --- PM USER VALID ROLES ---
             if server.id in self.json:
                 valid_roles = []
-                for r in self.json[server.id]:
+                for r in self.json[server.id]["roles"]:
                     role = discord.utils.get(server.roles, id=r)
-                    log.debug(role.id)
                     if role is None:
-                        temp.append('ID: {}'.format(role.id))
+                        log.debug("Invalid role ID: {}".format(r))
+                        continue
                     else:
+                        log.debug(role.id)
                         valid_roles.append(role.name)
                 msg = ("Valid register roles in {}:\n"
                         "{}"
@@ -80,15 +103,14 @@ class Register:
             await send_cmd_help(ctx)
             valid_roles = []
             if server.id in self.json:
-                for r in self.json[server.id]:
+                for r in self.json[server.id]["roles"]:
                     # Get the role name
                     role = discord.utils.get(server.roles, id=r)
-                    log.debug(role.id)
                     if role is None:
-                        temp.append('ID: {}'.format(role.id))
+                        log.debug("Invalid role ID: {}".format(r))
+                        continue
                     else:
                         valid_roles.append(role.name)
-
             msg = ("Valid register roles:\n"
                    "{}"
                    "".format(", ".join(sorted(valid_roles)))
@@ -111,12 +133,12 @@ class Register:
                 await self.bot.say("I cannot create a role. Please assign Manage Roles to me!")
         role = discord.utils.get(server.roles, name=role_name)
         # --- DONE CREATING ROLE! ---
-        self.add_server_to_json(server)
+        self.json_server_check(server)
         # --- ADDING ROLE TO JSON ---
         try:
-            if role.id not in self.json[server.id]:
+            if role.id not in self.json[server.id]["roles"]:
                 # ROLE NOT IN REGISTER
-                self.json[server.id][role.id] = {'role_name': role.name}
+                self.json[server.id]["roles"][role.id] = {'role_name': role.name}
                 dataIO.save_json(self.location, self.json)
                 await self.bot.say('``{}`` is now in register.'.format(role.name))
             else:
@@ -133,9 +155,9 @@ class Register:
             role = discord.utils.get(server.roles, name=role_name)
             if role:
                 # ROLE IS IN SERVER
-                if role.id in self.json[server.id]:
-                    # REMOVE ROLE FROM JSON
-                    del self.json[server.id][role.id]
+                if role.id in self.json[server.id]["roles"]:
+                    # --- REMOVE ROLE FROM JSON ---
+                    del self.json[server.id]["roles"][role.id]
                     dataIO.save_json(self.location, self.json)
                     await self.bot.say('``{}`` role has been removed from register.'.format(role.name))
                 else:
@@ -144,27 +166,57 @@ class Register:
             else:
                 # ROLE ISN'T IN SERVER
                 await self.bot.say('That role isn\'t in this server.')
-                if role_name in [r['role_name'] for r in self.json[server.id]]:
-                    # TODO: REMOVE ROLE FROM JSON
-                    del self.json[server.id][r]
-                    dataIO.save_json(self.location, self.json)
-                    await self.bot.say('Old role removed from register.')
-                else:
-                    await self.bot.say('That role isn\'t in this server.')
+                # TODO : REMOVE NONEXISTENT ROLE FROM JSON
+                role_in_json = False
+                for r in self.json[server.id]["roles"]:
+                    if self.json[server.id]["roles"][r]["role_name"] == role_name:
+                        role_in_json = True
+                        # REMOVE ROLE FROM JSON
+                        del self.json[server.id]["roles"][r]
+                        dataIO.save_json(self.location, self.json)
+                        await self.bot.say('Role was in register regardless, and has been removed. It must have been renamed or deleted from the server.')
+                        break
         else:
             msg = 'There aren\'t any roles you can register for in this server.'.format(server.name)
             await self.bot.say(box(msg))
 
     # TODO : FINISH DELCMDS
-    '''@regedit.command(name="delcmds", pass_context=True, no_pm=True)
-    async def _regedit_delcmds(self, ctx):
-        """Toggles whether or not a the !register command is deleted after being sent."""
-        self.add_server_to_json(server)'''
+    # @regedit.command(name="delcmds", pass_context=True, no_pm=True)
+    # async def _regedit_delcmds(self, ctx):
+        # """Toggles whether or not the !register command is deleted after being sent.
+        # Note: This forces WHISPER to be set to ON."""
+        # server = ctx.message.server
+        # self.json_server_check(server)
+        # self.json[server.id]["delcmds"] = not self.json[server.id]["delcmds"]
+        # if self.json[server.id]["delcmds"]:
+            # await self.bot.say("Register commands will now be deleted after sending. Please make sure I have permissions to manage messages!")
+            # if not self.json[server.id]["whisper"]:
+                # self.json[server.id]["whisper"] = True
+                # await self.bot.say("I will now respond to register commands via DM.")
+        # else:
+            # await self.bot.say("Register commands will no longer be deleted after sending.")
+        # dataIO.save_json(self.location, self.json)
         
-    def add_server_to_json(server):
+    # TODO : FINISH WHISPER
+    # @regedit.command(name="whisper", pass_context=True, no_pm=True)
+    # async def _regedit_whisper(self, ctx):
+        # """Toggles whether or not I respond to register commands via DM.
+        # NOTE: Is always set to ON whilst DELCMDS is set to ON."""
+        # server = ctx.message.server
+        # self.json_server_check(server)
+        # if self.json[server.id]["delcmds"]:
+            # await self.bot.say("DELCMDS is ON! Please use !regedit delcmds to toggle off before toggling WHISPER off.")
+        # else:
+            # self.json[server.id]["whisper"] = not self.json[server.id]["whisper"]
+            # if self.json[server.id]["whisper"]:
+                # await self.bot.say("I will now respond to register commands via DM.")
+            # else:
+                # await self.bot.say("I will no longer respond to register commands via DM.")
+        
+    def json_server_check(self, server):
         if server.id not in self.json:
                 log.debug('Adding server({}) in Json'.format(server.id))
-                self.json[server.id] = {}
+                self.json[server.id] = default_settings
                 dataIO.save_json(self.location, self.json)
 
         
