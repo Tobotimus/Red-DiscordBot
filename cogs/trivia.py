@@ -63,7 +63,7 @@ class Trivia:
     @triviaset.command()
     async def payout(self, amount : int):
         """Amount to pay to winner"""
-        if amount > 0:
+        if amount >= 0:
             self.settings["TRIVIA_PAYOUT"] = amount
             dataIO.save_json(self.file_path, self.settings)
             await self.bot.say("Winner will recieve {} credits".format(str(amount)))
@@ -166,10 +166,10 @@ class TriviaSession():
             payout = self.settings["TRIVIA_PAYOUT"]
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])   #Winner name
-            if user.name != trivia_manager.bot.user.name:
+            if user.name != trivia_manager.bot.user.name or payout == 0:
                 try:
                     bank.deposit_credits(user, payout)
-                    await trivia_manager.bot.say("{} has won 250 credits for placeing first! Congratulations!".format(user.mention))
+                    await trivia_manager.bot.say("{} has won {} credits for placeing first! Congratulations!".format(user.mention,payout))
                 except:
                     await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
                                         "Winnings are forfeit I'm afraid :(."
