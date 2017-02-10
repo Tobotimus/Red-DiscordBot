@@ -166,10 +166,10 @@ class TriviaSession():
             payout = self.settings["TRIVIA_PAYOUT"]
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])   #Winner name
-            if user.name != trivia_manager.bot.user.name or payout == 0:
+            if user.name != trivia_manager.bot.user.name and payout != 0:
                 try:
                     bank.deposit_credits(user, payout)
-                    await trivia_manager.bot.say("{} has won {} credits for placeing first! Congratulations!".format(user.mention,payout))
+                    await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
                 except:
                     await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
                                         "Winnings are forfeit I'm afraid :(."
