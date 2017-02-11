@@ -133,7 +133,7 @@ class Owner:
         else:
             await self.bot.say("All cogs are now unloaded.")
 
-    @checks.is_owner()
+    @checks.admin_or_permissions(administrator=True)
     @commands.command(name="reload")
     async def _reload(self, module):
         """Reloads a module
