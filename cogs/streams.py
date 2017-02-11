@@ -28,7 +28,7 @@ class Streams:
     @commands.command()
     async def hitbox(self, stream: str):
         """Checks if hitbox stream is online"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(hitbox\.tv\/)'
         stream = re.sub(regex, '', stream)
         online = await self.hitbox_online(stream)
@@ -45,7 +45,7 @@ class Streams:
     @commands.command(pass_context=True)
     async def twitch(self, ctx, stream: str):
         """Checks if twitch stream is online"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(twitch\.tv\/)'
         stream = re.sub(regex, '', stream)
         online = await self.twitch_online(stream)
@@ -70,7 +70,7 @@ class Streams:
     @commands.command()
     async def beam(self, stream: str):
         """Checks if beam stream is online"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(beam\.pro\/)'
         stream = re.sub(regex, '', stream)
         online = await self.beam_online(stream)
@@ -93,7 +93,7 @@ class Streams:
     @streamalert.command(name="twitch", pass_context=True)
     async def twitch_alert(self, ctx, stream: str):
         """Adds/removes twitch alerts from the current channel"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(twitch\.tv\/)'
         stream = re.sub(regex, '', stream)
         channel = ctx.message.channel
@@ -144,7 +144,7 @@ class Streams:
     @streamalert.command(name="hitbox", pass_context=True)
     async def hitbox_alert(self, ctx, stream: str):
         """Adds/removes hitbox alerts from the current channel"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(hitbox\.tv\/)'
         stream = re.sub(regex, '', stream)
         channel = ctx.message.channel
@@ -190,7 +190,7 @@ class Streams:
     @streamalert.command(name="beam", pass_context=True)
     async def beam_alert(self, ctx, stream: str):
         """Adds/removes beam alerts from the current channel"""
-        stream = escape_mass_mentions(stream)
+        stream = escape_mass_mentions(stream).lower()
         regex = r'^(https?\:\/\/)?(www\.)?(beam\.pro\/)'
         stream = re.sub(regex, '', stream)
         channel = ctx.message.channel
@@ -279,8 +279,8 @@ class Streams:
         dataIO.save_json("data/streams/beam.json", self.beam_streams)
 
         await self.bot.say("There will be no more stream alerts in this "
-                           "channel.")
-
+                           "channel.")  
+    
     @commands.group(pass_context=True)
     @checks.is_owner()
     async def streamset(self, ctx):
@@ -419,7 +419,7 @@ class Streams:
                 dataIO.save_json("data/streams/beam.json", self.beam_streams)
 
             await asyncio.sleep(CHECK_DELAY)
-
+            
 
 def check_folders():
     if not os.path.exists("data/streams"):
