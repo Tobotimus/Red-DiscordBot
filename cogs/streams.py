@@ -365,10 +365,16 @@ class Streams:
                             continue
                         can_speak = channel_obj.permissions_for(channel_obj.server.me).send_messages
                         if channel_obj and can_speak:
-                            await self.bot.send_message(
-                                self.bot.get_channel(channel),
-                                "http://www.twitch.tv/"
-                                "{} is online!".format(stream["NAME"]))
+                            if stream["NAME"] == "r6_anz":
+                                await self.bot.send_message(
+                                    self.bot.get_channel(channel),
+                                    "@here http://www.twitch.tv/"
+                                    "{} is online!".format(stream["NAME"]))
+                            else:
+                                await self.bot.send_message(
+                                    self.bot.get_channel(channel),
+                                    "http://www.twitch.tv/"
+                                    "{} is online!".format(stream["NAME"]))
                 else:
                     if stream["ALREADY_ONLINE"] and not online:
                         stream["ALREADY_ONLINE"] = False
