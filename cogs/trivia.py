@@ -162,18 +162,19 @@ class TriviaSession():
         bank = trivia_manager.bot.get_cog('Economy').bank
         if self.score_list:
             await self.send_table()
-            # Award winner with 250 credits
+            # Award winner with credits
             payout = self.settings["TRIVIA_PAYOUT"]
             server = self.channel.server
-            user = server.get_member_named(self.score_list[0][0])   #Winner name
-            if user.name != trivia_manager.bot.user.name and payout != 0:
-                try:
-                    bank.deposit_credits(user, payout)
-                    await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
-                except:
-                    await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
-                                        "Winnings are forfeit I'm afraid :(."
-                                        "".format(user.mention))
+            user = server.get_member_named(self.score_list[0][0])
+            if self.score_list[0][1] == self.settings["TRIVIA_MAX_SCORE"]:
+                if user.name != trivia_manager.bot.user.name and payout != 0:
+                    try:
+                        bank.deposit_credits(user, payout)
+                        await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
+                    except:
+                        await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
+                                            "Winnings are forfeit I'm afraid :(."
+                                            "".format(user.mention))
         trivia_manager.trivia_sessions.remove(self)
 
     def guess_encoding(self, trivia_list):
