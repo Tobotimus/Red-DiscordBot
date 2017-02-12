@@ -438,6 +438,8 @@ class Streams:
                             if channel_obj is None:
                                 continue
                             mention = self.settings.get(channel_obj.server.id, {}).get("MENTION", "")
+                            if stream["NAME"] == "r6_anz":
+                                mention = self.settings.get(channel_obj.server.id, "@here")
                             can_speak = channel_obj.permissions_for(channel_obj.server.me).send_messages
                             if channel_obj and can_speak:
                                 await self.bot.send_message(channel_obj, mention, embed=online)
