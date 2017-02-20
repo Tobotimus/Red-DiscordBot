@@ -438,7 +438,7 @@ class Streams:
                             if channel_obj is None:
                                 continue
                             mention = self.settings.get(channel_obj.server.id, {}).get("MENTION", "")
-                            if stream["NAME"] == "r6_anz":
+                            if stream["NAME"] == "r6_anz" and channel == "145739371629379584": #Channel id for r6_anz streaming and youtube
                                 mention = self.settings.get(channel_obj.server.id, "@here")
                             can_speak = channel_obj.permissions_for(channel_obj.server.me).send_messages
                             if channel_obj and can_speak:
