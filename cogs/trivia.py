@@ -285,10 +285,11 @@ class TriviaSession():
                         return True
 
     def add_point(self, user):
-        if user in self.score_list:
-            self.score_list[user.name + "#" + user.discriminator] += 1
+        userName = user.name + "#" + user.discriminator #Unique username to account for multiples
+        if userName in self.score_list:
+            self.score_list[userName] += 1
         else:
-            self.score_list[user.name + "#" + user.discriminator] = 1
+            self.score_list[userName] = 1
 
     def get_trivia_question(self):
         q = randchoice(list(trivia_questions.keys()))
