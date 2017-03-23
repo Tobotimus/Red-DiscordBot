@@ -243,7 +243,7 @@ class TriviaSession():
             msg = randchoice(self.gave_answer).format(self.current_q["ANSWERS"][0])
             if self.settings["TRIVIA_BOT_PLAYS"]:
                 msg += " **+1** for me!"
-                self.add_point(trivia_manager.bot.user.name)
+                self.add_point(trivia_manager.bot.user)
             self.current_q["ANSWERS"] = []
             try:
                 await trivia_manager.bot.say(msg)
@@ -274,7 +274,7 @@ class TriviaSession():
                     if answer in message.content.lower():
                         self.current_q["ANSWERS"] = []
                         self.status = "correct answer"
-                        self.add_point(message.author.name)
+                        self.add_point(message.author)
                         msg = "You got it {}! **+1** to you!".format(message.author.name)
                         try:
                             await trivia_manager.bot.send_typing(self.channel)
@@ -286,9 +286,9 @@ class TriviaSession():
 
     def add_point(self, user):
         if user in self.score_list:
-            self.score_list[user] += 1
+            self.score_list[user.name + "#" + user.discriminator] += 1
         else:
-            self.score_list[user] = 1
+            self.score_list[user.name + "#" + user.discriminator] = 1
 
     def get_trivia_question(self):
         q = randchoice(list(trivia_questions.keys()))
