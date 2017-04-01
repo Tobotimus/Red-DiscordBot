@@ -160,6 +160,7 @@ class TriviaSession():
     async def end_game(self):
         self.status = "stop"
         bank = trivia_manager.bot.get_cog('Economy').bank
+        playerCheck = await self.PlayerCheck()
         if self.score_list:
             await self.send_table()
             # Award winner with credits
@@ -167,7 +168,7 @@ class TriviaSession():
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])
             if self.score_list[0][1] == self.settings["TRIVIA_MAX_SCORE"]:
-                if user.name != trivia_manager.bot.user.name and payout != 0:
+                if user.name != trivia_manager.bot.user.name and payout != 0 and playerCheck == True:
                     try:
                         bank.deposit_credits(user, payout)
                         await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
@@ -175,8 +176,22 @@ class TriviaSession():
                         await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
                                             "Winnings are forfeit I'm afraid :(."
                                             "".format(user.mention))
+                                            
+                if user.name != trivia_manager.bot.user.name and playerCheck == False:
+                    await trivia_manager.bot.say("{} has won! Congratulations! Play against someone else and you can earn yourself some credits :D".format(user.mention))
         trivia_manager.trivia_sessions.remove(self)
-
+        
+    async def PlayerCheck(self):
+        count = 0
+        bot = trivia_manager.bot.user.name + "#" + trivia_manager.bot.user.discriminator
+        for player in self.score_list:
+            #await trivia_manager.bot.say("player = {} and bot = {}".format(self.channel.server.get_member_named(player),bot))
+            if self.channel.server.get_member_named(player) != self.channel.server.get_member_named(bot):
+                
+                count = count + 1
+               # await trivia_manager.bot.say("count = {}".format(count))
+        return count > 1
+        
     def guess_encoding(self, trivia_list):
         with open(trivia_list, "rb") as f:
             try:
