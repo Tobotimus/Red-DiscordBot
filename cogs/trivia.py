@@ -70,6 +70,16 @@ class Trivia:
         else:
             await self.bot.say("Payout must be greater than 0")
             
+    @triviaset.command()
+    async def players(self, amount : int):
+        """Minimum amount of players before payout is given"""
+        if amount >=0:
+            self.settings["MIN_PLAYERS"] = amount
+            dataIO.save_json(self.file_path, self.settings)
+            await self.bot.say("{} Players needed for payout".format(str(amount)))
+        else:
+            await self.bot.say("Must be a number greater than 0")
+            
     @commands.command(pass_context=True)
     async def trivia(self, ctx, list_name : str=None):
         """Start a trivia session with the specified list
@@ -129,6 +139,7 @@ class TriviaSession():
         self.status = None
         self.timer = None
         self.count = 0
+        self.players = 0
         self.settings = settings
 
     async def load_questions(self, msg):
@@ -164,33 +175,33 @@ class TriviaSession():
         if self.score_list:
             await self.send_table()
             # Award winner with credits
-            payout = self.settings["TRIVIA_PAYOUT"]
+            
+            payout = self.settings["TRIVIA_PAYOUT"] * self.players
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])
             if self.score_list[0][1] == self.settings["TRIVIA_MAX_SCORE"]:
                 if user.name != trivia_manager.bot.user.name and payout != 0 and playerCheck == True:
                     try:
                         bank.deposit_credits(user, payout)
-                        await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
+                        await trivia_manager.bot.say("{} has won {} credits for placing first against {} people! Congratulations!".format(user.mention,payout,self.players))
                     except:
                         await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
                                             "Winnings are forfeit I'm afraid :(."
                                             "".format(user.mention))
                                             
                 if user.name != trivia_manager.bot.user.name and playerCheck == False:
-                    await trivia_manager.bot.say("{} has won! Congratulations! Play against someone else and you can earn yourself some credits :D".format(user.mention))
+                    await trivia_manager.bot.say("{} has won! Congratulations! Play against at least {} people and you can earn yourself some credits."
+                                        "".format(user.mention,self.settings["MIN_PLAYERS"]))
         trivia_manager.trivia_sessions.remove(self)
-        
+   
     async def PlayerCheck(self):
         count = 0
         bot = trivia_manager.bot.user.name + "#" + trivia_manager.bot.user.discriminator
         for player in self.score_list:
-            #await trivia_manager.bot.say("player = {} and bot = {}".format(self.channel.server.get_member_named(player),bot))
             if self.channel.server.get_member_named(player) != self.channel.server.get_member_named(bot):
-                
                 count = count + 1
-               # await trivia_manager.bot.say("count = {}".format(count))
-        return count > 1
+        self.players = count
+        return count >= self.settings["MIN_PLAYERS"]
         
     def guess_encoding(self, trivia_list):
         with open(trivia_list, "rb") as f:
@@ -332,7 +343,7 @@ def check_folders():
 
 
 def check_files():
-    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False, "TRIVIA_PAYOUT" : 250}
+    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False, "TRIVIA_PAYOUT" : 250, "MIN_PLAYERS" : 2}
 
     if not os.path.isfile("data/trivia/settings.json"):
         print("Creating empty settings.json...")
