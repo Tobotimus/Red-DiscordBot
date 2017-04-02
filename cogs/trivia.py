@@ -72,8 +72,8 @@ class Trivia:
             
     @triviaset.command()
     async def players(self, amount : int):
-        """Minimum amount of players before payout is given"""
-        if amount >=0:
+        """Minimum amount of players before payout is given, must be atleast 1"""
+        if amount >0:
             self.settings["MIN_PLAYERS"] = amount
             dataIO.save_json(self.file_path, self.settings)
             await self.bot.say("{} Players needed for payout".format(str(amount)))
@@ -181,15 +181,13 @@ class TriviaSession():
             user = server.get_member_named(self.score_list[0][0])
             if self.score_list[0][1] == self.settings["TRIVIA_MAX_SCORE"]:
                 if user.name != trivia_manager.bot.user.name and payout != 0 and playerCheck == True:
-                    try:
-                        bank.deposit_credits(user, payout)
-                        await trivia_manager.bot.say("{} has won {} credits for placing first against {} people! Congratulations!".format(user.mention,payout,self.players))
-                    except:
-                        await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
-                                            "Winnings are forfeit I'm afraid :(."
-                                            "".format(user.mention))
-                                            
-                if user.name != trivia_manager.bot.user.name and playerCheck == False:
+                    if not bank.account_exists(user):
+                        await trivia_manager.bot.say("{} does not have a bank account, creating one now...".format(user.mention))
+                        bank.create_account(user)
+                    bank.deposit_credits(user, payout)
+                    await trivia_manager.bot.say("{} has won {} credits for placing first in a match of {}! Congratulations!".format(user.mention,payout,self.players))
+
+                if user.name != trivia_manager.bot.user.name and payout !=0 and playerCheck == False:
                     await trivia_manager.bot.say("{} has won! Congratulations! Play against at least {} people and you can earn yourself some credits."
                                         "".format(user.mention,self.settings["MIN_PLAYERS"]))
         trivia_manager.trivia_sessions.remove(self)
