@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from __main__ import send_cmd_help
 import os
 import textwrap
 
@@ -27,18 +28,24 @@ class Spoiler:
         self.bg_color = 20
 
     @commands.command(pass_context=True, no_pm=True)
-    async def spoiler(self, ctx, *text: str):
-        """Use an animated gif to hide spoiler text"""
+    async def spoiler(self, ctx, topic, *text: str):
+        """Use an animated gif to hide spoiler text
+        Example: !spoiler GoT Someone dies
+        
+        If you want the topic to be more than one word put \"\" around it.
+        Example: !spoiler \"Game of thrones\" Someone definitely dies"""
 
         message = ctx.message
         author = message.author.display_name
-
+        
         try:
             await self.bot.delete_message(message)
         except discord.errors.Forbidden:
             await self.bot.say("I require the 'manage messages' permission "
                                "to hide spoilers!")
-
+        if text == (): #No message to hide
+             await send_cmd_help(ctx)
+             return
         try:
             fnt = ImageFont.truetype(self.font, self.font_size)
         except OSError:
@@ -63,7 +70,7 @@ class Spoiler:
         spoil_img[0].save(self.temp_filepath, format="GIF", save_all=True,
                           append_images=[spoil_img[1]],
                           duration=[0, 0xFFFF], loop=0)
-        content = "**" + author + "** posted this spoiler:"
+        content = "**" + author + "** posted this spoiler about, "+topic+":"
         await self.bot.send_file(ctx.message.channel, self.temp_filepath,
                                  content=content)
         os.remove(self.temp_filepath)
