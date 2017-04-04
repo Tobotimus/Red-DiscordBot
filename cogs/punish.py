@@ -119,6 +119,7 @@ class Punish:
         }
 
         await self.bot.add_roles(user, role)
+        await self.bot.send_message(user,"You were punished from {} for {} by {}. Reason given: {}".format(server.name, _generate_timespec(duration), ctx.message.author.name, reason))
         dataIO.save_json(self.location, self.json)
 
         # schedule callback for role removal
@@ -181,8 +182,9 @@ class Punish:
             'by': ctx.message.author.id,
             'reason': reason
         }
-
+       
         await self.bot.add_roles(user, role)
+        await self.bot.send_message(user,"You were punished from {} for {} by {}. Reason given: {}".format(server.name, _generate_timespec(duration), ctx.message.author.name, reason))
         dataIO.save_json(self.location, self.json)
 
         # schedule callback for role removal
