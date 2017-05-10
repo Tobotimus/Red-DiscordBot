@@ -70,6 +70,16 @@ class Trivia:
         else:
             await self.bot.say("Payout must be greater than 0")
             
+    @triviaset.command()
+    async def players(self, amount : int):
+        """Minimum amount of players before payout is given, must be atleast 1"""
+        if amount >0:
+            self.settings["MIN_PLAYERS"] = amount
+            dataIO.save_json(self.file_path, self.settings)
+            await self.bot.say("{} Players needed for payout".format(str(amount)))
+        else:
+            await self.bot.say("Must be a number greater than 0")
+            
     @commands.command(pass_context=True)
     async def trivia(self, ctx, list_name : str=None):
         """Start a trivia session with the specified list
@@ -129,6 +139,7 @@ class TriviaSession():
         self.status = None
         self.timer = None
         self.count = 0
+        self.players = 0
         self.settings = settings
 
     async def load_questions(self, msg):
@@ -160,23 +171,36 @@ class TriviaSession():
     async def end_game(self):
         self.status = "stop"
         bank = trivia_manager.bot.get_cog('Economy').bank
+        playerCheck = await self.PlayerCheck()
         if self.score_list:
             await self.send_table()
             # Award winner with credits
-            payout = self.settings["TRIVIA_PAYOUT"]
+            
+            payout = self.settings["TRIVIA_PAYOUT"] * self.players
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])
             if self.score_list[0][1] == self.settings["TRIVIA_MAX_SCORE"]:
-                if user.name != trivia_manager.bot.user.name and payout != 0:
-                    try:
-                        bank.deposit_credits(user, payout)
-                        await trivia_manager.bot.say("{} has won {} credits for placing first! Congratulations!".format(user.mention,payout))
-                    except:
-                        await trivia_manager.bot.say("Uh oh, something went wrong. {} may not have an account with the bank. Use !bank register to open an account. " 
-                                            "Winnings are forfeit I'm afraid :(."
-                                            "".format(user.mention))
-        trivia_manager.trivia_sessions.remove(self)
+                if user.name != trivia_manager.bot.user.name and payout != 0 and playerCheck == True:
+                    if not bank.account_exists(user):
+                        await trivia_manager.bot.say("{} does not have a bank account, creating one now...".format(user.mention))
+                        bank.create_account(user)
+                    bank.deposit_credits(user, payout)
+                    await trivia_manager.bot.say("{} has won {} credits for placing first in a match of {}! Congratulations!".format(user.mention,payout,self.players))
 
+                if user.name != trivia_manager.bot.user.name and payout !=0 and playerCheck == False:
+                    await trivia_manager.bot.say("{} has won! Congratulations! Play against at least {} people and you can earn yourself some credits."
+                                        "".format(user.mention,self.settings["MIN_PLAYERS"]))
+        trivia_manager.trivia_sessions.remove(self)
+   
+    async def PlayerCheck(self):
+        count = 0
+        bot = trivia_manager.bot.user.name + "#" + trivia_manager.bot.user.discriminator
+        for player in self.score_list:
+            if self.channel.server.get_member_named(player) != self.channel.server.get_member_named(bot):
+                count = count + 1
+        self.players = count
+        return count >= self.settings["MIN_PLAYERS"]
+        
     def guess_encoding(self, trivia_list):
         with open(trivia_list, "rb") as f:
             try:
@@ -243,7 +267,7 @@ class TriviaSession():
             msg = randchoice(self.gave_answer).format(self.current_q["ANSWERS"][0])
             if self.settings["TRIVIA_BOT_PLAYS"]:
                 msg += " **+1** for me!"
-                self.add_point(trivia_manager.bot.user.name)
+                self.add_point(trivia_manager.bot.user)
             self.current_q["ANSWERS"] = []
             try:
                 await trivia_manager.bot.say(msg)
@@ -274,7 +298,7 @@ class TriviaSession():
                     if answer in message.content.lower():
                         self.current_q["ANSWERS"] = []
                         self.status = "correct answer"
-                        self.add_point(message.author.name)
+                        self.add_point(message.author)
                         msg = "You got it {}! **+1** to you!".format(message.author.name)
                         try:
                             await trivia_manager.bot.send_typing(self.channel)
@@ -285,10 +309,11 @@ class TriviaSession():
                         return True
 
     def add_point(self, user):
-        if user in self.score_list:
-            self.score_list[user] += 1
+        userName = user.name + "#" + user.discriminator #Unique username to account for multiples
+        if userName in self.score_list:
+            self.score_list[userName] += 1
         else:
-            self.score_list[user] = 1
+            self.score_list[userName] = 1
 
     def get_trivia_question(self):
         q = randchoice(list(trivia_questions.keys()))
@@ -316,7 +341,7 @@ def check_folders():
 
 
 def check_files():
-    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False, "TRIVIA_PAYOUT" : 250}
+    settings = {"TRIVIA_MAX_SCORE" : 10, "TRIVIA_TIMEOUT" : 120,  "TRIVIA_DELAY" : 15, "TRIVIA_BOT_PLAYS" : False, "TRIVIA_PAYOUT" : 250, "MIN_PLAYERS" : 2}
 
     if not os.path.isfile("data/trivia/settings.json"):
         print("Creating empty settings.json...")

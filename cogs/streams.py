@@ -1,10 +1,12 @@
 import discord
 from discord.ext import commands
 from .utils.dataIO import dataIO
-from .utils.chat_formatting import *
+from .utils.chat_formatting import escape_mass_mentions
 from .utils import checks
 from __main__ import send_cmd_help
 from collections import defaultdict
+from string import ascii_letters
+from random import choice
 import os
 import re
 import aiohttp
@@ -316,7 +318,7 @@ class Streams:
         url = "https://api.hitbox.tv/media/live/" + stream
         try:
             async with aiohttp.get(url) as r:
-                data = await r.json()
+                data = await r.json(encoding='utf-8')
             if "livestream" not in data:
                 return None
             if data["livestream"][0]["media_is_live"] == "0":
@@ -334,7 +336,7 @@ class Streams:
         header = {'Client-ID': self.settings.get("TWITCH_TOKEN", "")}
         try:
             async with session.get(url, headers=header) as r:
-                data = await r.json()
+                data = await r.json(encoding='utf-8')
             await session.close()
             if r.status == 400:
                 return 400
@@ -353,7 +355,7 @@ class Streams:
         url = "https://beam.pro/api/v1/channels/" + stream
         try:
             async with aiohttp.get(url) as r:
-                data = await r.json()
+                data = await r.json(encoding='utf-8')
             if "online" in data:
                 if data["online"] is True:
                     data = self.beam_embed(data)
@@ -380,7 +382,8 @@ class Streams:
         embed.add_field(name="Followers", value=channel["followers"])
         embed.add_field(name="Total views", value=channel["views"])
         embed.set_thumbnail(url=logo)
-        embed.set_image(url=data["stream"]["preview"]["medium"])
+        if data["stream"]["preview"]["medium"]:
+            embed.set_image(url=data["stream"]["preview"]["medium"] + self.rnd_attr())
         if channel["game"]:
             embed.set_footer(text="Playing: " + channel["game"])
         embed.color = 0x6441A4
@@ -396,20 +399,27 @@ class Streams:
         embed.add_field(name="Followers", value=channel["followers"])
         #embed.add_field(name="Views", value=channel["views"])
         embed.set_thumbnail(url=base_url + channel["user_logo"])
-        embed.set_image(url=base_url + livestream["media_thumbnail"])
+        if livestream["media_thumbnail"]:
+            embed.set_image(url=base_url + livestream["media_thumbnail"] + self.rnd_attr())
         embed.set_footer(text="Playing: " + livestream["category_name"])
         embed.color = 0x98CB00
         return embed
 
     def beam_embed(self, data):
+        default_avatar = ("https://beam.pro/_latest/assets/images/main/"
+                          "avatars/default.jpg")
         user = data["user"]
         url = "https://beam.pro/" + data["token"]
         embed = discord.Embed(title=data["name"], url=url)
         embed.set_author(name=user["username"])
         embed.add_field(name="Followers", value=data["numFollowers"])
         embed.add_field(name="Total views", value=data["viewersTotal"])
-        embed.set_thumbnail(url=user["avatarUrl"])
-        embed.set_image(url=data["thumbnail"]["url"])
+        if user["avatarUrl"]:
+            embed.set_thumbnail(url=user["avatarUrl"])
+        else:
+            embed.set_thumbnail(url=default_avatar)
+        if data["thumbnail"]:
+            embed.set_image(url=data["thumbnail"]["url"] + self.rnd_attr())
         embed.color = 0x4C90F3
         if data["type"] is not None:
             embed.set_footer(text="Playing: " + data["type"]["name"])
@@ -438,7 +448,7 @@ class Streams:
                             if channel_obj is None:
                                 continue
                             mention = self.settings.get(channel_obj.server.id, {}).get("MENTION", "")
-                            if stream["NAME"] == "r6_anz":
+                            if stream["NAME"] == "r6_anz" and channel == "145739371629379584": #Channel id for r6_anz streaming and youtube
                                 mention = self.settings.get(channel_obj.server.id, "@here")
                             can_speak = channel_obj.permissions_for(channel_obj.server.me).send_messages
                             if channel_obj and can_speak:
@@ -455,6 +465,10 @@ class Streams:
                 dataIO.save_json("data/streams/beam.json", self.beam_streams)
 
             await asyncio.sleep(CHECK_DELAY)
+
+    def rnd_attr(self):
+        """Avoids Discord's caching"""
+        return "?rnd=" + "".join([choice(ascii_letters) for i in range(6)])
 
 
 def check_folders():
