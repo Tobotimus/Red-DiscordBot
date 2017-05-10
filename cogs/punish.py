@@ -360,19 +360,20 @@ class Punish:
 
     async def on_channel_create(self, c):
         """Run when new channels are created and set up role permissions"""
-        role = discord.utils.get(c.server.roles, name=self.role_name)
-        if not role or c.is_private:
-            return
+        if not c.is_private:
+            role = discord.utils.get(c.server.roles, name=self.role_name)
+            if not role or c.is_private:
+                return
 
-        perms = discord.PermissionOverwrite()
+            perms = discord.PermissionOverwrite()
 
-        if c.type == discord.ChannelType.text:
-            perms.send_messages = False
-            perms.send_tts_messages = False
-        elif c.type == discord.ChannelType.voice:
-            perms.speak = False
+            if c.type == discord.ChannelType.text:
+                perms.send_messages = False
+                perms.send_tts_messages = False
+            elif c.type == discord.ChannelType.voice:
+                perms.speak = False
 
-        await self.bot.edit_channel_permissions(c, role, overwrite=perms)
+            await self.bot.edit_channel_permissions(c, role, overwrite=perms)
 
     async def on_member_update(self, before, after):
         """Remove scheduled unpunish when manually removed"""
