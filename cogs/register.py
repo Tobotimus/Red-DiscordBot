@@ -58,17 +58,17 @@ class Register:
                     if role not in user.roles:
                         # --- ADD TO USER ---
                         await self.bot.add_roles(user, role)
-                        await self.bot.send_message(user, '{} role has been assigned to you in {}!'.format(role.name, server.name))
+                        await self.bot.send_message(channel, '`{}` role has been assigned to you in {}!'.format(role.name, server.name))
                     else:
                         # --- REMOVE FROM USER ---
                         await self.bot.remove_roles(user, role)
-                        await self.bot.send_message(channel, '{} role has been removed from you in {}!'.format(role.name, server.name))
+                        await self.bot.send_message(channel, '`{}` role has been removed from you in {}!'.format(role.name, server.name))
                 else:
                     # ROLE NOT IN REGISTER
-                    await self.bot.send_message(channel, 'You can\'t register for {} in {}.'.format(role.name, server.name))
+                    await self.bot.send_message(channel, 'You can\'t register for `{}` in {}.'.format(role.name, server.name))
             except:
                 # ROLE NOT IN SERVER
-                await self.bot.send_message(channel, '{} isn\'t a role in {}.'.format(role_name, server.name))
+                await self.bot.send_message(channel, '`{}` isn\'t a role in {}.'.format(role_name, server.name))
         else:
             # NO ROLE GIVEN
             # --- SEND HELP MESSAGE ---
@@ -76,7 +76,7 @@ class Register:
             for page in pages:
                 await self.bot.send_message(channel, page)
             # --- SEND VALID ROLES ---
-            if server.id in self.json:
+            if server.id in self.json and self.json[server.id]["roles"]:
                 valid_roles = []
                 for r in self.json[server.id]["roles"]:
                     role = discord.utils.get(server.roles, id=r)
@@ -126,7 +126,8 @@ class Register:
         """Adds a register role."""
         server = ctx.message.server
         # --- CREATING ROLE ---
-        if role_name not in [r.name for r in server.roles]:
+        role = discord.utils.get(server.roles, name=role_name)
+        if role is None:
             await self.bot.say('The {} role doesn\'t exist! Creating it now!'.format(role_name))
             log.debug('Creating {} role in {}'.format(role_name, server.id))
             try:
@@ -135,7 +136,7 @@ class Register:
                 await self.bot.say("Role created!")
             except discord.Forbidden:
                 await self.bot.say("I cannot create a role. Please assign Manage Roles to me!")
-        role = discord.utils.get(server.roles, name=role_name)
+            role = discord.utils.get(server.roles, name=role_name)
         # --- DONE CREATING ROLE! ---
         self.json_server_check(server)
         # --- ADDING ROLE TO JSON ---
@@ -215,11 +216,65 @@ class Register:
             else:
                 await self.bot.say("I will no longer respond to register commands via DM.")
         
+    @commands.command(pass_context=True, no_pm=True)
+    @checks.serverowner_or_permissions(manage_roles=True)
+    async def giverole(self, ctx, role_name: str, user: discord.Member=None):
+        """Gives a role to a user. 
+        
+        If <user> is not specified, it gives the role to whoever invoked the command."""
+        author = ctx.message.author
+        server = author.server
+        if user is None:
+            user = author
+        role = discord.utils.get(server.roles, name=role_name)
+        if role is not None:
+            if role not in user.roles and (author.top_role > role or author == server.owner):
+                try:
+                    await self.bot.add_roles(user, role)
+                    await self.bot.say("The `{}` role has been assigned to {}.".format(role.name, user.display_name))
+                except discord.errors.Forbidden:
+                    await self.bot.say("I do not have permission to add the `{}` role.".format(role.name))
+            elif author.top_role <= role and author != server.owner:
+                await self.bot.say("You do not have permission to give the `{}` role.".format(role.name))
+            else:
+                await self.bot.say("{} already has the `{}` role.".format(user.display_name, role.name))
+        else:
+            await self.bot.say("The `{}` role does not exist. Remember role names are case-sensitive.\n".format(role_name) +
+                               "If the role name is more than one word surround it with `\'` or `\"`.")
+
+    @commands.command(pass_context=True, no_pm=True)
+    async def removerole(self, ctx, role_name: str, user: discord.Member=None):
+        """Removes a role  from a user.
+        
+        If <user> is not specified, it removes the role from whoever invoked the command."""
+        author = ctx.message.author
+        server = author.server
+        if user is None:
+            user = author
+        role_name = role_name.strip('\"\'')
+        role = discord.utils.get(server.roles, name=role_name)
+        if role is not None:
+            if role in user.roles and (author.top_role > role or author == server.owner):
+                try:
+                    await self.bot.remove_roles(user, role)
+                    await self.bot.say("The `{}` role has been removed from {}.".format(role.name, user.display_name))
+                except discord.errors.Forbidden:
+                    await self.bot.say("I do not have permission to remove the `{}` role.".format(role.name))
+            elif author.top_role <= role and author != server.owner:
+                await self.bot.say("You do not have permission to remove the `{}` role.".format(role.name))
+            else:
+                await self.bot.say("{} does not have the `{}` role.".format(user.display_name, role.name))
+        else:
+            await self.bot.say("The `{}` role does not exist. Remember role names are case-sensitive.\n".format(role_name) +
+                               "If the role name is more than one word surround it with `\'` or `\"`.")
+
     def json_server_check(self, server):
         if server.id not in self.json:
                 log.debug('Adding server({}) in Json'.format(server.id))
                 self.json[server.id] = default_settings
                 dataIO.save_json(self.location, self.json)
+
+    
         
 def check_folder():
     if not os.path.exists('data/register'):
