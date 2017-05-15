@@ -7,6 +7,9 @@ import logging.handlers
 import traceback
 import datetime
 import subprocess
+import socket
+import re
+import time
 
 try:
     from discord.ext import commands
@@ -217,6 +220,41 @@ class Bot(commands.Bot):
 
         response = self.loop.run_in_executor(None, install)
         return await asyncio.wait_for(response, timeout=timeout)
+
+class TwitchBot():
+    """Represents a twitch chat bot.
+    
+    Attributes
+    -----------
+    socket
+        Used for network abstraction.
+
+    command_prefix
+        The command prefix is what the message content must contain initially
+        to have a command invoked. This prefix should be a string.
+
+        The command prefix could also be a list or a tuple indicating that
+        multiple checks for the prefix should be used and the first one to
+        match will be the invocation prefix. You can get this prefix via
+        :attr:`Context.prefix`.
+    """
+
+    def __init__(self, command_prefix):
+        self.command_prefix = command_prefix
+        self.socket = socket.socket()
+
+    @asyncio.coroutine
+    def send_message(self, channel, content=None):
+        """Sends a message to the specified channel with the content given.
+
+        Parameters
+        ------------
+        channel
+            The channel to send the message.
+        content
+            The content of the message to send. Must be a string.
+        """
+        sock.send("PRIVMSG #{} :{}".format(channel, content))
 
 
 class Formatter(commands.HelpFormatter):

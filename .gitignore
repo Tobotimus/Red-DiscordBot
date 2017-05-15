@@ -6,3 +6,9 @@ data
 !data/audio/playlists/*
 *.exe
 *.dll
+/lib
+/Red-DiscordBot.sln
+/Red-DiscordBot.pyproj
+/start_red.bat
+/start_red_autorestart.bat
+/.vs/Red-DiscordBot/v14/.suo

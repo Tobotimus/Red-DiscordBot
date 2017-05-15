@@ -13,8 +13,8 @@ import time
 import logging
 import random
 
-default_settings = {"PAYDAY_TIME": 300, "PAYDAY_CREDITS": 120,
-                    "SLOT_MIN": 5, "SLOT_MAX": 100, "SLOT_TIME": 0,
+default_settings = {"PAYDAY_TIME": 28800, "PAYDAY_CREDITS": 500,
+                    "SLOT_MIN": 50, "SLOT_MAX": 1000, "SLOT_TIME": 5,
                     "REGISTER_CREDITS": 0}
 
 
