@@ -243,6 +243,7 @@ class Register:
                                "If the role name is more than one word surround it with `\'` or `\"`.")
 
     @commands.command(pass_context=True, no_pm=True)
+    @checks.serverowner_or_permissions(manage_roles=True)
     async def removerole(self, ctx, role_name: str, user: discord.Member=None):
         """Removes a role  from a user.
         
