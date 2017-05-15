@@ -486,7 +486,7 @@ class Streams:
                         if stream["ALREADY_ONLINE"]:
                             stream["ALREADY_ONLINE"] = False
                             save = True
-                            await self.delete_old_notifications(key)
+                            await self.amend_old_notifications(key)
                     except:  # We don't want our task to die
                         continue
                     else:
@@ -518,7 +518,7 @@ class Streams:
 
             await asyncio.sleep(CHECK_DELAY)
 
-    async def delete_old_notifications(self, key):
+    async def amend_old_notifications(self, key):
         for message in self.messages_cache[key]:
             server = message.server
             settings = self.settings.get(server.id, {})
@@ -526,6 +526,8 @@ class Streams:
             try:
                 if is_enabled:
                     await self.bot.delete_message(message)
+                else:
+                    await self.bot.edit_message(message, message.content.replace("is", "was"))
             except:
                 pass
 

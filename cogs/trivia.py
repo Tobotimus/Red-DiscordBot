@@ -199,6 +199,8 @@ class TriviaSession():
             if self.channel.server.get_member_named(player) != self.channel.server.get_member_named(bot):
                 count = count + 1
         self.players = count
+        if self.settings["MIN_PLAYERS"] is None:
+            return False
         return count >= self.settings["MIN_PLAYERS"]
         
     def guess_encoding(self, trivia_list):
