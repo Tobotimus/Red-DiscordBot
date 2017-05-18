@@ -279,6 +279,7 @@ class General:
 
     @commands.command(pass_context=True, no_pm=True)
     async def roleinfo(self, ctx, *, role_name):
+        """Shows role's informations"""
         server = ctx.message.server
         if role_name == "everyone": role_name = "@everyone"
         role = discord.utils.get(server.roles, name=role_name)
@@ -295,10 +296,10 @@ class General:
 
             data = discord.Embed(colour=role.colour)
             data.add_field(name="Members", value=str(num_members))
+            data.add_field(name="Created On", value=created_on)
             data.add_field(name="Position", value=str(role.position))
             data.add_field(name="Role Below", value=str(role_below))
             data.add_field(name="Role Above", value=str(role_above))
-            data.add_field(name="Created On", value=created_on)
             data.set_footer(text="Role ID: " + role.id)
             data.set_author(name=role.name)
 
