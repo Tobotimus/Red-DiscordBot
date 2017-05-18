@@ -1,7 +1,7 @@
 from discord.ext import commands
-from .utils.dataIO import dataIO
-from .utils.chat_formatting import escape_mass_mentions
-from .utils import checks
+from utils.dataIO import dataIO
+from utils.chat_formatting import escape_mass_mentions, box
+from utils import checks
 from collections import defaultdict
 from string import ascii_letters
 from random import choice
@@ -203,6 +203,27 @@ class Streams:
             await self.bot.say("Alert has been removed from this channel.")
 
         dataIO.save_json("data/streams/beam.json", self.beam_streams)
+
+    @streamalert.command(name="list", pass_context=True)
+    async def list_alerts(self, ctx):
+        """Lists active alerts in the current channel."""
+        channel = ctx.message.channel
+
+        streams = (
+            self.hitbox_streams,
+            self.twitch_streams,
+            self.beam_streams
+        )
+        message = ""
+        for stream_type in streams:
+            to_list = []
+
+            for s in stream_type:
+                if channel.id in s["CHANNELS"]:
+                    to_list.append(s)
+            for s in to_list:
+                message += s["NAME"] + "\n"
+        await self.bot.say("Alerts in this channel:\n" + box(message))
 
     @streamalert.command(name="stop", pass_context=True)
     async def stop_alert(self, ctx):
