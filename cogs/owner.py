@@ -4,7 +4,7 @@ from cogs.utils import checks
 from __main__ import set_cog
 from .utils.dataIO import dataIO
 from .utils.chat_formatting import pagify, box
-
+import subprocess
 import importlib
 import traceback
 import logging
@@ -651,6 +651,28 @@ class Owner:
         except:
             pass
         await self.bot.shutdown(restart=True)
+
+    @commands.command()
+    @checks.admin()
+    async def update(self):
+        """Attempts to update Red
+
+        Simply runs git pull --ff-only"""
+        try:
+            code = subprocess.call(("git", "pull", "--ff-only"))
+        except FileNotFoundError:
+            print("\nError: Git not found. It's either not installed or not in "
+                  "the PATH environment variable like requested in the guide.")
+            await self.bot.say("Git not found. Check your console for more information.")
+            return
+        if code == 0:
+            await self.bot.say("Updated successfully.")
+            print("\nRed has been updated")
+        else:
+            print("\nRed could not update properly. If this is caused by edits "
+                  "you have made to the code you can try the repair option from "
+                  "the Maintenance submenu")
+            await self.bot.say("Update unsuccessful. Check your console for more info.")
 
     @commands.group(name="command", pass_context=True)
     @checks.is_owner()

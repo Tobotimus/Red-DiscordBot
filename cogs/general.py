@@ -308,7 +308,7 @@ class General:
                 await self.bot.say("I need the `Embed links` permission "
                                    "to send this")
         else:
-            self.bot.say("No such role. Remember, role names are case sensitive.")
+            await self.bot.say("No such role. Remember, role names are case sensitive.")
 
     @commands.command()
     async def urban(self, *, search_terms : str, definition_number : int=1):
