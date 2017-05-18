@@ -12,3 +12,12 @@ data
 /start_red.bat
 /start_red_autorestart.bat
 /.vs/Red-DiscordBot/v14/.suo
+/.idea
+/.vs/Red-DiscordBot/v15
+*.suo
+/.idea/workspace.xml
+/.idea/vcs.xml
+/.idea/Red-DiscordBot.iml
+/.idea/modules.xml
+/.idea/misc.xml
+/UpgradeLog.htm

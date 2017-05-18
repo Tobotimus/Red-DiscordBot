@@ -277,6 +277,39 @@ class General:
             await self.bot.say("I need the `Embed links` permission "
                                "to send this")
 
+    @commands.command(pass_context=True, no_pm=True)
+    async def roleinfo(self, ctx, *, role_name):
+        server = ctx.message.server
+        if role_name == "everyone": role_name = "@everyone"
+        role = discord.utils.get(server.roles, name=role_name)
+        if role is not None:
+            num_members = len([x for x in server.members if role in x.roles])
+            role_below = discord.utils.get(server.roles, position=role.position-1)
+            if role_below is not None: role_below = role_below.name
+            role_above = discord.utils.get(server.roles, position=role.position+1)
+            if role_above is not None: role_above = role_above.name
+            mentionable = role.mentionable
+            role_created = role.created_at.strftime("%d %b %Y")
+            since_created = (ctx.message.timestamp - role.created_at).days
+            created_on = "{}\n({} days ago)".format(role_created, since_created)
+
+            data = discord.Embed(colour=role.colour)
+            data.add_field(name="Members", value=str(num_members))
+            data.add_field(name="Position", value=str(role.position))
+            data.add_field(name="Role Below", value=str(role_below))
+            data.add_field(name="Role Above", value=str(role_above))
+            data.add_field(name="Created On", value=created_on)
+            data.set_footer(text="Role ID: " + role.id)
+            data.set_author(name=role.name)
+
+            try:
+                await self.bot.say(embed=data)
+            except discord.HTTPException:
+                await self.bot.say("I need the `Embed links` permission "
+                                   "to send this")
+        else:
+            self.bot.say("No such role. Remember, role names are case sensitive.")
+
     @commands.command()
     async def urban(self, *, search_terms : str, definition_number : int=1):
         """Urban Dictionary search
