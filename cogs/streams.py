@@ -523,6 +523,8 @@ class Streams:
                             mention = self.settings.get(channel.server.id, {}).get("MENTION", "")
                             if stream["NAME"].lower() == "r6_anz" and channel_id == "145739371629379584": #Channel id for R6_ANZ streaming and youtube
                                 mention = "@here"
+                            if stream["NAME"].lower() == "r6_anz_xb1" and channel_id == "145739371629379584":
+                                mention = "@here"
                             if stream["NAME"].lower() == "tobotimus" and channel_id == "279486975038324747": # Convenience for testing the mention
                                 mention = "@here"
                             can_speak = channel.permissions_for(channel.server.me).send_messages
