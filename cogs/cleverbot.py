@@ -79,17 +79,7 @@ class Cleverbot():
     @cleverbot.command(pass_context=True)
     async def goodbye(self, ctx):
         """End your conversation with the bot"""
-        author = ctx.message.author
-        if author.id in self.instances:
-            try:
-                goodbye = await self.get_response(author, "Goodbye Cleverbot.")
-            except:
-                goodbye = "Goodbye {}.".format(author.display_name)
-            del self.instances[author.id]
-            dataIO.save_json("data/cleverbot/instances.json", self.instances)
-            await self.bot.say(goodbye)
-        else:
-            await self.bot.say("I was never talking to you in the first place.")
+        await self.end_conversation(ctx.message.author, ctx.message.channel)
         
     @cleverbot.command()
     @checks.is_owner()
@@ -164,25 +154,40 @@ class Cleverbot():
                 return
             text = text.replace(to_strip, "", 1)
             await self.bot.send_typing(channel)
-            try:
-                response = await self.get_response(author, text)
-            except NoCredentials:
-                await self.bot.send_message(channel, "The owner needs to set the credentials first.\n"
-                                                     "See: `[p]cleverbot apikey`")
-            except APIError:
-                await self.bot.send_message(channel, "Error contacting the API.")
-            except InvalidCredentials:
-                await self.bot.send_message(channel, "The token that has been set is not valid.\n"
-                                                     "See: `[p]cleverbot apikey`")
-            except OutOfRequests:
-                await self.bot.send_message(channel, "You have ran out of requests for this month. "
-                                                     "The free tier has a 5000 requests a month limit.")
-            except OutdatedCredentials:
-                await self.bot.send_message(channel, "You need a valid cleverbot.com api key for this to "
-                                                     "work. The old cleverbot.io service will soon be no "
-                                                     "longer active. See `[p]help cleverbot apikey`")
+            if "goodbye" in text.lower():
+                await self.end_conversation(author, channel)
             else:
-                await self.bot.send_message(channel, response)
+                try:
+                    response = await self.get_response(author, text)
+                except NoCredentials:
+                    await self.bot.send_message(channel, "The owner needs to set the credentials first.\n"
+                                                         "See: `[p]cleverbot apikey`")
+                except APIError:
+                    await self.bot.send_message(channel, "Error contacting the API.")
+                except InvalidCredentials:
+                    await self.bot.send_message(channel, "The token that has been set is not valid.\n"
+                                                         "See: `[p]cleverbot apikey`")
+                except OutOfRequests:
+                    await self.bot.send_message(channel, "You have ran out of requests for this month. "
+                                                         "The free tier has a 5000 requests a month limit.")
+                except OutdatedCredentials:
+                    await self.bot.send_message(channel, "You need a valid cleverbot.com api key for this to "
+                                                         "work. The old cleverbot.io service will soon be no "
+                                                         "longer active. See `[p]help cleverbot apikey`")
+                else:
+                    await self.bot.send_message(channel, response)
+                
+    async def end_conversation(self, author, channel):
+        if author.id in self.instances:
+            try:
+                goodbye = await self.get_response(author, "Goodbye Cleverbot.")
+            except:
+                goodbye = "Goodbye {}.".format(author.display_name)
+            del self.instances[author.id]
+            dataIO.save_json("data/cleverbot/instances.json", self.instances)
+            await self.bot.send_message(channel, goodbye)
+        else:
+            await self.bot.send_message(channel, "I was never talking to you in the first place.")
 
 
 def check_folders():
