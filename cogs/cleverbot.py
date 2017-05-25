@@ -161,19 +161,19 @@ class Cleverbot():
                     response = await self.get_response(author, text)
                 except NoCredentials:
                     await self.bot.send_message(channel, "The owner needs to set the credentials first.\n"
-                                                         "See: `[p]cleverbot apikey`")
+                                                            "See: `[p]cleverbot apikey`")
                 except APIError:
                     await self.bot.send_message(channel, "Error contacting the API.")
                 except InvalidCredentials:
                     await self.bot.send_message(channel, "The token that has been set is not valid.\n"
-                                                         "See: `[p]cleverbot apikey`")
+                                                            "See: `[p]cleverbot apikey`")
                 except OutOfRequests:
                     await self.bot.send_message(channel, "You have ran out of requests for this month. "
-                                                         "The free tier has a 5000 requests a month limit.")
+                                                            "The free tier has a 5000 requests a month limit.")
                 except OutdatedCredentials:
                     await self.bot.send_message(channel, "You need a valid cleverbot.com api key for this to "
-                                                         "work. The old cleverbot.io service will soon be no "
-                                                         "longer active. See `[p]help cleverbot apikey`")
+                                                            "work. The old cleverbot.io service will soon be no "
+                                                            "longer active. See `[p]help cleverbot apikey`")
                 else:
                     await self.bot.send_message(channel, response)
                 

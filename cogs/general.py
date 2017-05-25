@@ -50,6 +50,11 @@ class General:
         await self.bot.say("Pong.")
 
     @commands.command()
+    async def echo(self, *, message):
+        """Echos a message."""
+        await self.bot.say(message)
+
+    @commands.command()
     async def choose(self, *choices):
         """Chooses between multiple choices.
 
