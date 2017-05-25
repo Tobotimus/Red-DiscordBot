@@ -35,7 +35,7 @@ class Cleverbot():
     def __init__(self, bot):
         self.bot = bot
         self.settings = dataIO.load_json("data/cleverbot/settings.json")
-        self.instances = {}
+        self.instances = dataIO.load_json("data/cleverbot/instances.json")
 
     @commands.group(no_pm=True, invoke_without_command=True, pass_context=True)
     async def cleverbot(self, ctx, *, message):
@@ -62,17 +62,6 @@ class Cleverbot():
         else:
             await self.bot.say(result)
 
-    @cleverbot.command()
-    @checks.is_owner()
-    async def toggle(self):
-        """Toggles reply on mention"""
-        self.settings["TOGGLE"] = not self.settings["TOGGLE"]
-        if self.settings["TOGGLE"]:
-            await self.bot.say("I will reply on mention.")
-        else:
-            await self.bot.say("I won't reply on mention anymore.")
-        dataIO.save_json("data/cleverbot/settings.json", self.settings)
-        
     @cleverbot.command(pass_context=True)
     async def conversations(self, ctx):
         """See who the bot is talking to"""
@@ -86,6 +75,32 @@ class Cleverbot():
                     message += "\n{}".format(discord.utils.get(server.members, id=c).display_name)
             message += "\n```"
         await self.bot.say(message)
+        
+    @cleverbot.command(pass_context=True)
+    async def goodbye(self, ctx):
+        """End your conversation with the bot"""
+        author = ctx.message.author
+        if author.id in self.instances:
+            try:
+                goodbye = await self.get_response(author, "Goodbye Cleverbot.")
+            except:
+                goodbye = "Goodbye {}.".format(author.display_name)
+            del self.instances[author.id]
+            dataIO.save_json("data/cleverbot/instances.json", self.instances)
+            await self.bot.say(goodbye)
+        else:
+            await self.bot.say("I was never talking to you in the first place.")
+        
+    @cleverbot.command()
+    @checks.is_owner()
+    async def toggle(self):
+        """Toggles reply on mention"""
+        self.settings["TOGGLE"] = not self.settings["TOGGLE"]
+        if self.settings["TOGGLE"]:
+            await self.bot.say("I will reply on mention.")
+        else:
+            await self.bot.say("I won't reply on mention anymore.")
+        dataIO.save_json("data/cleverbot/settings.json", self.settings)
         
     @cleverbot.command()
     @checks.is_owner()
@@ -120,6 +135,7 @@ class Cleverbot():
             else:
                 raise APIError()
         await session.close()
+        dataIO.save_json("data/cleverbot/instances.json", self.instances)
         return data["output"]
 
     def get_credentials(self):
@@ -178,6 +194,10 @@ def check_folders():
 def check_files():
     f = "data/cleverbot/settings.json"
     data = {"TOGGLE" : True}
+    if not dataIO.is_valid_json(f):
+        dataIO.save_json(f, data)
+    f = "data/cleverbot/instances.json"
+    data = {}
     if not dataIO.is_valid_json(f):
         dataIO.save_json(f, data)
 
