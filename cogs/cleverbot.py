@@ -1,6 +1,8 @@
 from discord.ext import commands
+import discord.utils
 from cogs.utils import checks
 from .utils.dataIO import dataIO
+import discord.utils
 import os
 import aiohttp
 import json
@@ -70,7 +72,21 @@ class Cleverbot():
         else:
             await self.bot.say("I won't reply on mention anymore.")
         dataIO.save_json("data/cleverbot/settings.json", self.settings)
-
+        
+    @cleverbot.command(pass_context=True)
+    async def conversations(self, ctx):
+        """See who the bot is talking to"""
+        server = ctx.message.server
+        author = ctx.message.author
+        message = "No one is talking to me right now."
+        if len(self.instances):
+            message = "I am having a conversation with the following users:\n```"
+            for c in self.instances:
+                if discord.utils.get(server.members, id=c) is not None:
+                    message += "\n{}".format(discord.utils.get(server.members, id=c).display_name)
+            message += "\n```"
+        await self.bot.say(message)
+        
     @cleverbot.command()
     @checks.is_owner()
     async def apikey(self, key: str):
