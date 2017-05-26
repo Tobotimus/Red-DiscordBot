@@ -99,7 +99,7 @@ class R6Stats:
             data.timestamp = datetime.datetime.now()
             data.colour = colours.get(platform)
             data.set_thumbnail(url=player.icon_url)
-            k__d = "{} - {}".format(player.kills, player.deaths) +\
+            k_d = "{} - {}".format(player.kills, player.deaths) +\
                    "(Ratio: {})".format("{0:.2f}".format(player.kills / player.deaths) if (player.deaths != 0) else "-.--")
             data.add_field(name="Kills - Deaths", value=k_d)
             data.add_field(name="Headshot %", value="{}%".format("{0:.1f}".format(player.headshots/player.kills*100) if (player.kills != 0) else "--.-"))
