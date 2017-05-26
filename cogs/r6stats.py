@@ -88,8 +88,12 @@ class R6Stats:
         await self.bot.send_typing(ctx.message.channel)
         player = await self.request_player(username, platform)
         if player is not None:
-            await player.check_general()
-            await player.check_level()
+            try:
+                await player.check_general()
+                await player.check_level()
+            except api.InvalidRequest:
+                await self.bot.say("There are no stats available for that player.")
+                return
             if player.xp is None or player.xp == 0:
                 await self.bot.say("There are no stats available for that player.")
                 return
@@ -121,8 +125,12 @@ class R6Stats:
             return
         player = await self.request_player(username, platform)
         if player is not None:
-            await player.check_queues()
-            await player.check_level()
+            try:
+                await player.check_queues()
+                await player.check_level()
+            except api.InvalidRequest:
+                await self.bot.say("There are no stats available for that player.")
+                return
             if player.xp is None or player.xp == 0:
                 await self.bot.say("There are no stats available for that player.")
                 return
@@ -154,8 +162,12 @@ class R6Stats:
         await self.bot.send_typing(ctx.message.channel)
         player = await self.request_player(username, platform)
         if player is not None:
-            await player.check_general()
-            await player.check_level()
+            try:
+                await player.check_general()
+                await player.check_level()
+            except api.InvalidRequest:
+                await self.bot.say("There are no stats available for that player.")
+                return
             if player.xp is None or player.xp == 0:
                 await self.bot.say("There are no stats available for that player.")
                 return
