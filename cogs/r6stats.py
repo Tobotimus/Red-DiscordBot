@@ -21,6 +21,12 @@ platforms = {
     "pc":           api.Platforms.UPLAY
 }
 
+r6db_platforms = {
+    api.Platforms.XBOX:         "xbox.",
+    api.Platforms.PLAYSTATION:  "ps4.",
+    api.Platforms.UPLAY:        ""
+}
+
 colours = {
     api.Platforms.XBOX:         discord.colour.Colour.green(),
     api.Platforms.PLAYSTATION:  discord.colour.Colour.magenta(),
@@ -84,7 +90,7 @@ class R6Stats:
     async def r6stats(self, ctx, username, platform="Uplay"):
         """Overall stats for a particular player.
         
-        Example usage: [p]r6s Tobotimus xbox"""
+        Example: !r6s Tobotimus xbox"""
         await self.bot.send_typing(ctx.message.channel)
         player = await self.request_player(username, platform)
         if player is not None:
@@ -108,7 +114,7 @@ class R6Stats:
             data.add_field(name="Kills - Deaths", value=k_d)
             data.add_field(name="Headshot %", value="{}%".format("{0:.1f}".format(player.headshots/player.kills*100) if (player.kills != 0) else "--.-"))
             data.add_field(name="Wins - Losses", value="{} - {}".format(player.matches_won, player.matches_lost))
-            data.add_field(name="Win %", value="{}%".format("{0:.1f}".format(player.matches_won/player.matches_lost*100) if (player.matches_lost != 0) else "--.-"))
+            data.add_field(name="Win %", value="{}%".format("{0:.1f}".format(player.matches_won/player.matches_played*100) if (player.matches_played != 0) else "--.-"))
             data.add_field(name="Playtime", value="{0:.1f}H".format(player.time_played / 3600))
             data.add_field(name="Level", value=player.level)
             await self.bot.say(embed=data)
@@ -117,7 +123,7 @@ class R6Stats:
     async def ranked(self, ctx, username, platform="Uplay", region="ANZ"):
         """Ranked stats for a particular player.
         
-        Example usage: [p]r6s rank Tobotimus uplay NA"""
+        Example: !r6s rank Tobotimus uplay NA"""
         await self.bot.send_typing(ctx.message.channel)
         region = regions.get(region.lower())
         if region is None: 
@@ -152,13 +158,15 @@ class R6Stats:
             data.add_field(name="MMR", value=mmr)
             record = "{} - {}\n".format(rank.wins, rank.losses) +\
                      "(Abandons: {})\n".format(rank.abandons) +\
-                     "(Win %: {}%)".format("{0:.1f}".format(rank.wins/rank.losses*100) if (rank.losses != 0) else "--.-")
+                     "(Win %: {}%)".format("{0:.1f}".format(rank.wins/(rank.losses+rank.wins)*100) if (rank.losses+rank.wins != 0) else "--.-")
             data.add_field(name="Wins - Losses", value=record)
             await self.bot.say(embed=data)
 
     @r6stats.command(aliases=["other"], pass_context=True)
     async def misc(self, ctx, username, platform="Uplay"):
-        """WIP"""
+        """Get Miscellaneous stats, including a hacker rating!
+        
+        Example: !r6s misc Tobotimus"""
         await self.bot.send_typing(ctx.message.channel)
         player = await self.request_player(username, platform)
         if player is not None:
@@ -177,11 +185,33 @@ class R6Stats:
             data.timestamp = datetime.datetime.now()
             data.colour = colours.get(platform)
             data.set_thumbnail(url=player.icon_url)
-            helpful =  "**Assists:** {}\n".format(player.kill_assists) +\
-                       "**Revives:** {}\n".format(player.revives)
-            data.add_field(name="Helpfulness", value=helpful)
+            useful =  "**Assists:** {}\n".format(player.kill_assists) +\
+                      "**Revives:** {}\n".format(player.revives) +\
+                      "**Reinforcements:** {}".format(player.reinforcements_deployed)
+            data.add_field(name="Usefulness", value=useful)
+            useless = "**Suicides:** {}\n".format(player.suicides) +\
+                      "**Barricades:** {}".format(player.barricades_deployed)
+            data.add_field(name="Uselessness", value=useless)
+            extras =  "**Gadgets Destroyed:** {}\n".format(player.gadgets_destroyed) +\
+                      "**Blind Kills:** {}\n".format(player.blind_kills) +\
+                      "**Melee Kills:** {}\n".format(player.melee_kills) +\
+                      "**Hotbreaches:** {}".format(player.rappel_breaches)
+            data.add_field(name="Extras", value=extras)
+            hacker =  "**{}%**\n".format("{0:.1f}".format(player.penetration_kills/player.kills*200) if player.kills != 0 else "--.-") +\
+                      "**Penetration Kills:** {}".format(player.penetration_kills)
+            data.add_field(name="Hacker Rating", value=hacker)
             await self.bot.say(embed=data)
-            
+
+    @commands.command(pass_context=True, aliases=["r6n", "r6name", "r6aliases"])
+    async def r6names(self, ctx, username, platform="Uplay"):
+        """Look up a player's aliases on R6DB.
+        
+        Example: !r6names Tobotimus"""
+        await self.bot.send_typing(ctx.message.channel)
+        platform = r6db_platforms.get(platforms.get(platform))
+        r = requests.Request(url= "https://{}r6db.com/api/v2/players/?name={}&exact=0".format(platform, username))
+        
+
     async def request_player(self, username, platform):
         if self.auth is None:
             await self.bot.say("The owner needs to set the credentials first.\n"
