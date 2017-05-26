@@ -99,13 +99,13 @@ class R6Stats:
             data.timestamp = datetime.datetime.now()
             data.colour = colours.get(platform)
             data.set_thumbnail(url=player.icon_url)
-            k_d = "{} - {}".format(player.kills, player.deaths) +\
-                   "(Ratio: {})".format("{0:.2f}".format(player.kills / player.deaths) if (player.deaths != 0) else "-.--")
+            k_d = "{} - {}\n".format(player.kills, player.deaths) +\
+                  "(Ratio: {})".format("{0:.2f}".format(player.kills / player.deaths) if (player.deaths != 0) else "-.--")
             data.add_field(name="Kills - Deaths", value=k_d)
             data.add_field(name="Headshot %", value="{}%".format("{0:.1f}".format(player.headshots/player.kills*100) if (player.kills != 0) else "--.-"))
-            data.add_field(name="Playtime", value="{0:.1f}H".format(player.time_played / 3600))
             data.add_field(name="Wins - Losses", value="{} - {}".format(player.matches_won, player.matches_lost))
             data.add_field(name="Win %", value="{}%".format("{0:.1f}".format(player.matches_won/player.matches_lost*100) if (player.matches_lost != 0) else "--.-"))
+            data.add_field(name="Playtime", value="{0:.1f}H".format(player.time_played / 3600))
             data.add_field(name="Level", value=player.level)
             await self.bot.say(embed=data)
 
