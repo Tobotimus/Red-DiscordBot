@@ -1572,10 +1572,8 @@ class Mod:
             try:
                 await bot.delete_message(message)
                 logger.debug("Deleted command msg {}".format(message.id))
-            except discord.errors.Forbidden:
-                # Do not have delete permissions
-                logger.debug("Wanted to delete mid {} but no"
-                             " permissions".format(message.id))
+            except:
+                pass  # We don't really care if it fails or not
 
         await asyncio.sleep(delay)
         await _delete_helper(self.bot, message)
@@ -1596,6 +1594,18 @@ class Mod:
             deleted = await self.check_duplicates(message)
         if not deleted:
             deleted = await self.check_mention_spam(message)
+
+    async def on_message_edit(self, _, message):
+        author = message.author
+        if message.server is None or self.bot.user == author:
+            return
+
+        valid_user = isinstance(author, discord.Member) and not author.bot
+
+        if not valid_user or self.is_mod_or_superior(message):
+            return
+
+        await self.check_filter(message)
 
     async def on_member_ban(self, member):
         server = member.server
