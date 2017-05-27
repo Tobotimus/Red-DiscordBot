@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from .utils.chat_formatting import escape_mass_mentions, italics, pagify
+from .utils.chat_formatting import escape_mass_mentions, italics, pagify, box
 from random import randint
 from random import choice
 from enum import Enum
@@ -178,6 +178,26 @@ class General:
             msg = "(つ≧▽≦)つ" + name
         elif intensity >= 10:
             msg = "(づ￣ ³￣)づ{} ⊂(´・ω・｀⊂)".format(name)
+        await self.bot.say(msg)
+        
+    @commands.command(no_pm=True, hidden=True)
+    async def kys(self, user : discord.Member):
+        """Just for when someone is a disappointment."""
+        name = italics(user.display_name)
+        msg = box("                     ,-------.                 /\n"
+            "                   ,'         `.           ,--'\n"
+            "                 ,'             `.      ,-;--        _.-\n"
+            "          BANG! /                 \ ---;-'  _.=.---''\n"
+            "+-----------+  ;    X        X     ---=-----'' _.-------\n"
+            "|           |--|                   \-----=---:i-\n"
+            "+XX|'i:''''''  :                   ;`--._ ''---':----\n"
+            "+X+-)          \    \         /   /      ''--._  `-\n"
+            "+XX|)           `.   `.     ,'  ,' \           ''---.\n"
+            "+\/)              `.   '---'  ,'    \                `-\n"
+            " \                   `---+---'       \ \n"
+            "  \                      |           {}\n"
+            "   \.                    |\n"
+            "     `-------------------+".format(user.display_name))
         await self.bot.say(msg)
 
     @commands.command(pass_context=True, no_pm=True)
