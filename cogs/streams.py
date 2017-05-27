@@ -546,7 +546,7 @@ class Streams:
     def enable_or_disable_if_active(self, streams, stream, channel, _id=None):
         """Returns True if enabled or False if disabled"""
         for i, s in enumerate(streams):
-            if s["NAME"] != stream:
+            if s["NAME"] != stream or s["ID"] != _id:
                 continue
 
             if channel.id in s["CHANNELS"]:
@@ -620,7 +620,7 @@ class Streams:
                             mention = self.settings.get(channel.server.id, {}).get("MENTION", "")
                             if stream["NAME"].lower() == "r6_anz" and channel_id == "145739371629379584": #Channel id for R6_ANZ streaming and youtube
                                 mention = "@here"
-                            if stream["NAME"].lower() == "r6_anz_xb1" and channel_id == "145739371629379584":
+                            if stream["NAME"].lower() == "r6_anz2" and channel_id == "145739371629379584":
                                 mention = "@here"
                             if stream["NAME"].lower() == "tobotimus" and channel_id == "279486975038324747": # Convenience for testing the mention
                                 mention = "@here"
