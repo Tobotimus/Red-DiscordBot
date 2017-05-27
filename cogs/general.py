@@ -182,8 +182,9 @@ class General:
         
     @commands.command(no_pm=True, hidden=True)
     async def kys(self, user : discord.Member):
-        """Just for when someone is a disappointment."""
-        name = italics(user.display_name)
+        """Just for when someone is a disappointment.
+        
+        2 intensity levels!"""
         msg = box("                     ,-------.                 /\n"
             "                   ,'         `.           ,--'\n"
             "                 ,'             `.      ,-;--        _.-\n"
@@ -198,6 +199,25 @@ class General:
             "  \                      |           {}\n"
             "   \.                    |\n"
             "     `-------------------+".format(user.display_name))
+        await self.bot.say(msg)
+        
+    @commands.command(pass_context=True, no_pm=True, hidden=True)
+    async def kms(self, ctx):
+        """For when you are a disappointment."""
+        msg = box("                     ,-------.                 /\n"
+            "                   ,'         `.           ,--'\n"
+            "                 ,'             `.      ,-;--        _.-\n"
+            "          BANG! /                 \ ---;-'  _.=.---''\n"
+            "+-----------+  ;    X        X     ---=-----'' _.-------\n"
+            "|           |--|                   \-----=---:i-\n"
+            "+XX|'i:''''''  :                   ;`--._ ''---':----\n"
+            "+X+-)          \    \         /   /      ''--._  `-\n"
+            "+XX|)           `.   `.     ,'  ,' \           ''---.\n"
+            "+\/)              `.   '---'  ,'    \                `-\n"
+            " \                   `---+---'       \ \n"
+            "  \                      |           {}\n"
+            "   \.                    |\n"
+            "     `-------------------+".format(ctx.message.author.display_name))
         await self.bot.say(msg)
 
     @commands.command(pass_context=True, no_pm=True)
