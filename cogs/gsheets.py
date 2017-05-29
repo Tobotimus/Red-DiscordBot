@@ -68,7 +68,7 @@ class GSheets:
             elif privacy == "channel":
                 channel = ctx.message.channel
                 if channel.id not in self.sheets:
-                    self.sheets[server.id] = []
+                    self.sheets[channel.id] = []
                 self.sheets[channel.id].append(sheet)
         dataIO.save_json("data/gsheets/sheets.json", self.sheets)
         await self.bot.say("The sheet has been added.")
