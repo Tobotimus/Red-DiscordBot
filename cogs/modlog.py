@@ -564,12 +564,12 @@ class ModLog:
         db = fileIO(self.direct, "load")
         if not server.id in db:
             return
-        if db[server.id]['toggleuser'] and db[server.id]['toggleroles'] == False:
+        if not (db[server.id]['toggleuser'] and db[server.id]['toggleroles']):
             return
         channel = db[server.id]["Channel"]
         time = datetime.datetime.now()
         fmt = '%H:%M:%S'
-        if not before.nick == after.nick:
+        if before.nick != after.nick:
             if db[server.id]["embed"] == True:
                 name = before
                 name = " ~ ".join((name.name, name.nick)) if name.nick else name.name
@@ -596,26 +596,32 @@ class ModLog:
         db = fileIO(self.direct, "load")
         if not server.id in db:
             return
-        if db[server.id]['toggleuser'] and db[server.id]['toggleroles'] == False:
+        if not (db[server.id]['toggleuser'] and db[server.id]['toggleroles']):
             return
         channel = db[server.id]["Channel"]
         time = datetime.datetime.now()
         fmt = '%H:%M:%S'
-        if not before.roles == after.roles:
+        if before.roles != after.roles:
             if db[server.id]["embed"] == True:
+                role_change = (set(before.roles) ^ set(after.roles)).pop()
+                if role_change in before.roles:
+                    change = "removed"
+                else:
+                    change = "added"
+                member = before
                 name = member
                 name = " ~ ".join((name.name, name.nick)) if name.nick else name.name
                 role = discord.Embed(description=name, colour=discord.Color.red())
-                infomessage = "__{}__ has left the server.".format(member.nick if member.nick else member.name)
+                infomessage = "__{}__ has had a role {}.".format(member.nick if member.nick else member.name, change)
                 role.add_field(name="Info:", value=infomessage, inline=False)
+                role.add_field(name="Role:", value=role_change.name, inline=False)
                 role.set_footer(text="User ID: {}".format(member.id))
-                role.set_author(name=time.strftime(fmt) + " - Leaving User",
-                                url="http://www.emoji.co.uk/files/mozilla-emojis/objects-mozilla/11928-outbox-tray.png")
+                role.set_author(name=time.strftime(fmt) + " - Role Change")
                 role.set_thumbnail(
-                    url="http://www.emoji.co.uk/files/mozilla-emojis/objects-mozilla/11928-outbox-tray.png")
+                    url="https://emojipedia-us.s3.amazonaws.com/cache/37/51/37514ff3020096ec4fe80d486dec0171.png")
                 try:
-                    await self.bot.send_message(server.get_channel(channel), embed=leave)
-                except:
+                    await self.bot.send_message(server.get_channel(channel), embed=role)
+                except discord.errors.Forbidden:
                     await self.bot.send_message(server.get_channel(channel),
                                                 "How is embed going to work when I don't have embed links permissions?")
             if db[server.id]["embed"] == False:
