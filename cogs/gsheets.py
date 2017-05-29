@@ -28,7 +28,8 @@ class GSheets:
         except:
             bot.say("Something went wrong whilst authorizing.")
 
-    @commands.command(pass_context=True)
+    @checks.moderator_or_permissions(manage_messages=True)
+    @commands.command(pass_context=True, no_pm=True)
     async def addsheet(self, ctx, name: str, url: str, privacy: str="server"):
         """Add a sheet so you can get ranges from it.
         Arguments:
@@ -47,7 +48,7 @@ class GSheets:
             await self.bot.say("Couldn't find that spreadsheet.")
             return
         for p in self.sheets: # Check if name already exists, regardless of privacy
-            if name in [s.name for s in self.sheets[p]]:
+            if name in [s['name'] for s in self.sheets[p]]:
                 await self.bot.say("There is already a sheet with that name.")
                 return
         sheet = { # Only name and ID is stored, so ranges can be requested later via the name
@@ -72,7 +73,7 @@ class GSheets:
         dataIO.save_json("data/gsheets/sheets.json", self.sheets)
         await self.bot.say("The sheet has been added.")
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, no_pm=True)
     async def removesheet(self, ctx, name: str):
         """Remove a sheet which has been added.
         Arguments:
@@ -92,7 +93,7 @@ class GSheets:
                 return
         await self.bot.say("Couldn't find a sheet with that name in your scope.")
 
-    @commands.command(pass_context=True)
+    @commands.command(pass_context=True, no_pm=True)
     async def gettable(self, ctx, sheet_name, *, ranges: str):
         """Get a range from a sheet and display it as a table.
         The top row is displayed as headers.
