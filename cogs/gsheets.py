@@ -28,7 +28,7 @@ class GSheets:
         except:
             bot.say("Something went wrong whilst authorizing.")
 
-    @checks.moderator_or_permissions(manage_messages=True)
+    @checks.mod_or_permissions(manage_messages=True)
     @commands.command(pass_context=True, no_pm=True)
     async def addsheet(self, ctx, name: str, url: str, privacy: str="server"):
         """Add a sheet so you can get ranges from it.
