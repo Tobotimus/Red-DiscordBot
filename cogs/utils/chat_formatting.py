@@ -20,6 +20,8 @@ def bold(text):
 
 def box(text, lang=""):
     ret = "```{}\n{}\n```".format(lang, text)
+    # Disable embedding discord links
+    ret = ret.replace("discord.gg/", "discord\gg/")
     return ret
 
 
