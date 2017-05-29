@@ -6,6 +6,10 @@ from cogs.utils.dataIO import dataIO
 import os
 import time
 import re
+try:
+    from cogs.mod import Mod
+except Exception as e:
+    raise RuntimeError("The `mod` cog needs to be installed before `punish`.") from e
 
 try:
     from tabulate import tabulate
@@ -86,55 +90,14 @@ class Punish:
     @checks.mod_or_permissions(manage_messages=True)
     async def cpunish(self, ctx, user: discord.Member, duration: str=None, *, reason: str=None):
         """Same as punish but cleans up after itself and the target"""
-        server = ctx.message.server
-
-        if ctx.message.author.top_role <= user.top_role:
-            await self.bot.say('Permission denied.')
-            return
-
-        role = await self.setup_role(server, quiet=True)
-        if not role:
-            return
-
-        if server.id not in self.json:
-            self.json[server.id] = {}
-
-        if not duration:
-            duration = _parse_time(DEFAULT_TIMEOUT)
-            timestamp = time.time() + duration
-        elif duration.lower() in ['forever', 'inf', 'infinite']:
-            duration = None
-            timestamp = None
-        else:
-            duration = _parse_time(duration)
-            timestamp = time.time() + duration
-
-        if server.id not in self.json:
-            self.json[server.id] = {}
-
-        self.json[server.id][user.id] = {
-            'until': timestamp,
-            'by': ctx.message.author.id,
-            'reason': reason
-        }
-
-        await self.bot.add_roles(user, role)
-        await self.bot.send_message(user,"You were punished from {} for {} by {}. Reason given: {}".format(server.name, _generate_timespec(duration), ctx.message.author.name, reason))
-        dataIO.save_json(self.location, self.json)
-
-        # schedule callback for role removal
-        if duration:
-            self.schedule_unpunish(duration, user, reason)
-
-        def is_user(m):
-            return m == ctx.message or m.author == user
-
-        try:
-            await self.bot.purge_from(ctx.message.channel, limit=PURGE_MESSAGES + 1, check=is_user)
-            await self.bot.delete_message(ctx.message)
-        except discord.errors.Forbidden:
-            await self.bot.send_message(ctx.message.channel, "Punishment set, but I need"
-                                        "permissions to manage messages to clean up.")
+        punishment = await ctx.invoke(self.punish, user, duration, reason=reason)
+        # punishment = await self._punish_user(ctx, user, duration, reason)
+        if punishment:
+            try:
+                await ctx.invoke(Mod.cleanup.get_command("user"), user, PURGE_MESSAGES)
+            except discord.errors.Forbidden:
+                await self.bot.send_message(ctx.message.channel, "Punishment set, but I need"
+                                            "permissions to manage messages to clean up.")
 
     @commands.command(pass_context=True, no_pm=True)
     @checks.mod_or_permissions(manage_messages=True)
@@ -142,13 +105,22 @@ class Punish:
         """Puts a user into timeout for a specified time period, with an optional reason.
         Time specification is any combination of number with the units s,m,h,d.
         Example: !punish @idiot 1.1h10m Enough bitching already!"""
-
         server = ctx.message.server
 
+        if not (any(r.permissions.administrator for r in server.me.roles) or
+                (any(r.permissions.manage_roles for r in server.me.roles) and 
+                any(r.permissions.manage_channels for r in server.me.roles))):
+            await self.bot.say("I require the Manage Roles and Manage Channels permissions first.")
+            return
+        if user.id == server.me.id:
+            await self.bot.say("Please don't make me punish myself!")
+            return
+        if user.id == ctx.message.author.id:
+            await self.bot.say("Please don't punish yourself!")
+            return
         if ctx.message.author.top_role <= user.top_role:
             await self.bot.say('Permission denied.')
             return
-
         role = await self.setup_role(server)
         if role is None:
             return
@@ -182,9 +154,9 @@ class Punish:
             'by': ctx.message.author.id,
             'reason': reason
         }
-       
         await self.bot.add_roles(user, role)
         await self.bot.send_message(user,"You were punished from {} for {} by {}. Reason given: {}".format(server.name, _generate_timespec(duration), ctx.message.author.name, reason))
+
         dataIO.save_json(self.location, self.json)
 
         # schedule callback for role removal
@@ -192,6 +164,7 @@ class Punish:
             self.schedule_unpunish(duration, user, reason)
 
         await self.bot.say(msg)
+        return True
 
     @commands.command(pass_context=True, no_pm=True, name='muted')
     @checks.mod_or_permissions(manage_messages=True)
@@ -266,7 +239,7 @@ class Punish:
                 if not quiet:
                     msgobj = await self.bot.edit_message(msgobj, msgobj.content + 'configuring channels... ')
                 for c in server.channels:
-                    await self.on_channel_create(c, role)
+                    await self.on_channel_create(c)
                 if not quiet:
                     await self.bot.edit_message(msgobj, msgobj.content + 'done.')
         return role
