@@ -207,7 +207,7 @@ class General:
         await ctx.invoke(self.kys, ctx.message.author)
 
     @commands.command(pass_context=True, no_pm=True, hidden=True)
-    async def quack(self, ctx, user=None):
+    async def quack(self, ctx, user: discord.Member=None):
         """QUACK"""
         if user is None: user = ctx.message.author
         msg = ("\
