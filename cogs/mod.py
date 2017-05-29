@@ -685,12 +685,14 @@ class Mod:
         dataIO.save_json("data/mod/perms_cache.json", self._perms_cache)
         await self.bot.say("User has been unmuted in this server.")
 
-    @commands.group(pass_context=True)
+    @commands.group(invoke_without_command=True, pass_context=True)
     @checks.mod_or_permissions(manage_messages=True)
-    async def cleanup(self, ctx):
-        """Deletes messages."""
-        if ctx.invoked_subcommand is None:
-            await send_cmd_help(ctx)
+    async def cleanup(self, ctx, number: int):
+        """Deletes messages.
+        
+        If you don't include a subcommand, it defaults to !cleanup messages."""
+        if number is not None:
+            await ctx.invoke(self.cleanup.get_command("messages"), number)
 
     @cleanup.command(pass_context=True, no_pm=True)
     async def text(self, ctx, text: str, number: int):
@@ -862,7 +864,11 @@ class Mod:
                               number, channel.name))
 
         if is_bot:
-            await self.mass_purge(to_delete)
+            try:
+                await self.mass_purge(to_delete)
+            except discord.errors.HTTPException as e:
+                await self.bot.say(e.text)
+                return
         else:
             await self.slow_deletion(to_delete)
 
