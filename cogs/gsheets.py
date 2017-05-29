@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from .utils import checks
+from .utils.chat_formatting import pagify, box
 from cogs.utils.dataIO import dataIO
 import os
 import pygsheets
@@ -126,8 +127,10 @@ class GSheets:
                 await self.bot.say("Invalid range.")
                 return
         headers = table.pop(0)
-        msg = '```\n%s\n```' % tabulate(table, headers)
-        await self.bot.say(msg)
+        msg = '\n%s\n' % tabulate(table, headers)
+        msg = pagify(msg)
+        for page in msg:
+            await self.bot.say(box(page))
 
     def get_sheet(self, channel, name):
         scopes = ["global", channel.server.id, channel.id]
