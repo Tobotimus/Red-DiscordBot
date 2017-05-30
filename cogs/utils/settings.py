@@ -18,6 +18,7 @@ class Settings:
             "EMAIL": None,
             "PASSWORD": None,
             "OWNER": None,
+            "CONTRIBUTORS": [],
             "PREFIXES": [],
             "default": {"ADMIN_ROLE": "Transistor",
                         "MOD_ROLE": "Process",
@@ -185,6 +186,15 @@ class Settings:
             return tuple()
 
     @property
+    def contributors(self):
+        return self.bot_settings["CONTRIBUTORS"]
+
+    @contributors.setter
+    def contributors(self, value):
+        assert isinstance(value, list)
+        self.bot_settings["CONTRIBUTORS"] = value
+
+    @property
     def prefixes(self):
         return self.bot_settings["PREFIXES"]
 
@@ -285,6 +295,30 @@ class Settings:
         """Returns server's prefixes if set, otherwise global ones"""
         p = self.get_server_prefixes(server)
         return p if p else self.prefixes
+
+    def add_contributor(self, user: discord.Member):
+        user_exists = next((u for u in self.contributors if u["id"] == user.id), None)
+        if user_exists is not None:
+            return
+        user_obj = [{
+            "id"  : user.id,
+            "name": str(user)
+        }]
+        self.contributors += user_obj
+        return True
+
+    def remove_contributor(self, user):
+        if isinstance(user, discord.Member):
+            user = next((u for u in self.contributors if u["id"] == user.id), None)
+        elif isinstance(user, str):
+            user = next((u for u in self.contributors if u["name"] == user), None)
+        if user is None:
+            return
+        try:
+            self.contributors.remove(user)
+        except ValueError:
+            return
+        return user
 
     def add_server(self, sid):
         self.bot_settings[sid] = self.bot_settings["default"].copy()
