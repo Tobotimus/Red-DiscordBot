@@ -127,6 +127,7 @@ class Strike:
                     serverSettings[user.id]["strike"] = nStrikes
                 else:
                     serverSettings[user.id]["strike"] += strikes
+                strike_level = serverSettings[user.id]["strike"]
                 forgiveAfter = serverSettings["forgive"][strike_level-1]
                 until = forgiveAfter + int(time.time())
                 serverSettings[user.id]["until"] = until
@@ -172,6 +173,7 @@ class Strike:
             if serverSettings[user.id]["strike"] <= 0:
                 del(serverSettings[user.id])
                 dataIO.save_json(self.location, self.settings)
+                await self.bot.say("{} has been completely forgiven".format(user.name))
                 return
                 
             strike_level = serverSettings[user.id]["strike"]
