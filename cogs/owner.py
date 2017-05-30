@@ -293,6 +293,7 @@ class Owner:
         cmds = str(ctx.invoked_subcommand).split()
         if len(cmds) < 3:
             await self.bot.send_cmd_help(ctx)
+            await ctx.invoke(self.contributors)
 
     @contributor.command(name="add")
     @checks.is_owner()
@@ -326,19 +327,6 @@ class Owner:
             return
         self.bot.settings.save_settings()
         await self.bot.say("{} is no longer a contributor.".format(user))
-
-
-    @contributor.command(name="list")
-    @checks.is_owner()
-    async def _list_contributors(self):
-        """List contributors for the bot"""
-        msg = ""
-        for c in self.bot.settings.contributors:
-            user = discord.utils.get(self.bot.get_all_members(), id=c["id"])
-            if user is None:
-                user = user["name"]
-            msg += "{}\n".format(str(user))
-        await self.bot.say(box(msg))
 
     @_set.command()
     @checks.is_owner()
@@ -924,16 +912,17 @@ class Owner:
         dpy_version = "[{}]({})".format(discord.__version__, dpy_repo)
         py_version = "[{}.{}.{}]({})".format(*os.sys.version_info[:3],
                                              python_url)
+        contributors = ""
+        for u in self.bot.settings.contributors:
+            u_obj = discord.utils.get(self.bot.get_all_members(), id=u["id"])
+            if u_obj is None:
+                u_obj = u["name"]
+            contributors += "{}\n".format(u_obj.mention if isinstance(u_obj, discord.Member) else str(u_obj))
 
         owner_set = self.bot.settings.owner is not None
         owner = self.bot.settings.owner if owner_set else None
         if owner:
             owner = discord.utils.get(self.bot.get_all_members(), id=owner)
-            #if not owner:
-            #    try:
-            #        owner = await self.bot.get_user_info(self.bot.settings.owner)
-            #    except:
-            #        owner = None
         if not owner:
             owner = "Unknown"
 
@@ -953,6 +942,8 @@ class Owner:
         embed.add_field(name="Python", value=py_version)
         embed.add_field(name="discord.py", value=dpy_version)
         embed.add_field(name="About Red", value=about, inline=False)
+        if contributors:
+            embed.add_field(name="Contributors to this instance", value=contributors, inline=False)
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         embed.set_footer(text="Bringing joy since 02 Jan 2016 (over "
                          "{} days ago!)".format(days_since))
@@ -962,6 +953,18 @@ class Owner:
         except discord.HTTPException:
             await self.bot.say("I need the `Embed links` permission "
                                "to send this")
+
+    @commands.command()
+    async def contributors(self):
+        """Show this instance of the bot's contributors."""
+        msg = "This bot's contributors are:\n"
+        contributors = ""
+        for u in self.bot.settings.contributors:
+            u_obj = discord.utils.get(self.bot.get_all_members(), id=u["id"])
+            if u_obj is None:
+                u_obj = u["name"]
+            contributors += "{}\n".format(str(u_obj))
+        await self.bot.say(msg + box(contributors))
 
     @commands.command()
     async def uptime(self):
