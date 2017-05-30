@@ -9,6 +9,9 @@ data
 /lib
 /Red-DiscordBot.sln
 /Red-DiscordBot.pyproj
+/start_launcher.sh
+/start_red.sh
+/start_red_autorestart.sh
 /start_red.bat
 /start_red_autorestart.bat
 /.vs/Red-DiscordBot/v14/.suo
