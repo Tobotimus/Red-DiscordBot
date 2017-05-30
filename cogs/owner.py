@@ -707,7 +707,7 @@ class Owner:
         await self.bot.shutdown(restart=True)
 
     @commands.command()
-    @checks.admin()
+    @checks.is_contributor()
     async def update(self):
         """Attempts to update Red
 

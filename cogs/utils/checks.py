@@ -15,6 +15,12 @@ def is_owner_check(ctx):
 def is_owner():
     return commands.check(is_owner_check)
 
+def is_contributor_check(ctx):
+    return any(u["id"] == ctx.message.author.id for u in settings.contributors)
+
+def is_contributor():
+    return commands.check(is_contributor_check)
+
 # The permission system of the bot is based on a "just works" basis
 # You have permissions and the bot has permissions. If you meet the permissions
 # required to execute the command (and the bot does as well) then it goes through
