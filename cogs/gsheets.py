@@ -117,8 +117,12 @@ class GSheets:
                 else:
                     temp_table = self.gc.get_range(sheet, range)
                     i = 0
-                    for row1 in table:
-                        row1 += temp_table[i]
+                    for row in temp_table:
+                        if i == len(table):
+                            # Make new row. Initialise new row as the length of the previous row before
+                            # temp_table[i] was added (maintain correct alignment)
+                            table.append([""]*(len(table[i-1]) - len(row)))
+                        table[i] += row
                         i += 1
             except HttpError as e:
                 await self.bot.say(e._get_reason())
@@ -126,6 +130,10 @@ class GSheets:
             except:
                 await self.bot.say("Invalid range.")
                 return
+        # Strip table elements of leading/trailing whitespace
+        for row in table:
+            for cell in row:
+                cell = cell.strip()
         headers = table.pop(0)
         msg = '\n%s\n' % tabulate(table, headers)
         msg = pagify(msg)
