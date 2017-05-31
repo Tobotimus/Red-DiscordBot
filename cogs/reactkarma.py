@@ -125,7 +125,8 @@ class ReactKarma():
                            "Are you sure you want to do this? Type `yes` to continue.")
         accepted = await self.bot.wait_for_message(author=ctx.message.author, content="yes", timeout=15.0)
         if accepted is not None:
-            dataIO.save_json(KARMA_PATH, {})
+            self.karma = {}
+            dataIO.save_json(KARMA_PATH, self.karma)
             await self.bot.say("Karma reset.")
         else:
             await self.bot.say("Reset cancelled.")
@@ -188,6 +189,7 @@ class ReactKarma():
             return " ".join(ret)
 
     def _add_karma(self, user_id, amount: int):
+        self.karma = dataIO.load_json(KARMA_PATH)
         if user_id not in self.karma:
             self.karma[user_id] = 0
         self.karma[user_id] += amount
