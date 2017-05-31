@@ -16,7 +16,7 @@ def is_owner():
     return commands.check(is_owner_check)
 
 def is_contributor_check(ctx):
-    return any(u["id"] == ctx.message.author.id for u in settings.contributors)
+    return any(u["id"] == ctx.message.author.id for u in settings.contributors) or is_owner_check(ctx)
 
 def is_contributor():
     return commands.check(is_contributor_check)

@@ -27,7 +27,7 @@ class GSheets:
         try:
             self.gc = pygsheets.authorize(outh_file="data/gsheets/client_secret.json", outh_nonlocal=True)
         except:
-            bot.say("Something went wrong whilst authorizing.")
+            print("Something went wrong whilst authorizing.")
 
     @checks.mod_or_permissions(manage_messages=True)
     @commands.command(pass_context=True, no_pm=True)
@@ -164,6 +164,5 @@ def setup(bot):
     check_files()
     f = "data/gsheets/client_secret.json"
     if not dataIO.is_valid_json(f):
-        bot.say("I need a client secret file to work.")
         print("I need a client secret file to work.")
     bot.add_cog(GSheets(bot))
