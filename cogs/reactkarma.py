@@ -1,10 +1,11 @@
 import os
 import discord
+from collections import namedtuple
 from discord.ext import commands
 from discord.ext.commands.bot import Bot
 from cogs.utils import checks
 from cogs.utils.dataIO import dataIO
-from cogs.utils.chat_formatting import inline
+from cogs.utils.chat_formatting import inline, pagify, box
 from unicodedata import name
 
 DIR_PATH = "data/reactkarma"
@@ -38,6 +39,33 @@ class ReactKarma():
     async def downvotes(self, ctx):
         """List the downvote emojis."""
         await self.bot.say("The downvote emojis are:\n{}".format(self._get_emojis(DOWNVOTE)))
+
+    @commands.command()
+    async def karmaboard(self, top: int=10):
+        """Prints out the karma leaderboard
+
+        Defaults to top 10"""
+        if top < 1:
+            top = 10
+        self.karma = dataIO.load_json(KARMA_PATH)
+        members_sorted = sorted(self._get_all_members(),
+                             key=lambda x: x.karma, reverse=True)
+        if len(members_sorted) < top:
+            top = len(members_sorted)
+        topten = members_sorted[:top]
+        highscore = ""
+        place = 1
+        for member in topten:
+            highscore += str(place).ljust(len(str(top)) + 1)
+            highscore += ("{} | ".format(member.name)
+                          ).ljust(18 - len(str(member.karma)))
+            highscore += str(member.karma) + "\n"
+            place += 1
+        if highscore != "":
+            for page in pagify(highscore, shorten_by=12):
+                await self.bot.say(box(page, lang="py"))
+        else:
+            await self.bot.say("No one has any karma :(")
 
     @commands.command(name="karma", pass_context=True)
     async def get_karma(self, ctx, user: discord.Member=None):
@@ -131,7 +159,7 @@ class ReactKarma():
         else:
             await self.bot.say("Reset cancelled.")
 
-    async def reaction_added(self, reaction: discord.Reaction, user: discord.User):
+    async def _reaction_added(self, reaction: discord.Reaction, user: discord.User):
         if self.setting_emojis: return # Don't change karma whilst adding/removing emojis
         author = reaction.message.author
         if author == user: return # Users can't change their own karma
@@ -144,6 +172,20 @@ class ReactKarma():
             self._add_karma(author.id, 1)
         elif emoji in self.settings[DOWNVOTE]:
             self._add_karma(author.id, -1)
+
+    def _get_all_members(self):
+        """Get a list of members which have karma.
+        
+        Returns:
+          A list of named tuples with values for `name`, `id`, `karma`"""
+        members = []
+        KarmaMember = namedtuple("Member", "id name karma")
+        for user_id, karma in self.karma.items():
+            member = discord.utils.get(self.bot.get_all_members(), id=user_id)
+            if member is None: continue
+            member = KarmaMember(id=member.id, name=str(member), karma=karma)
+            members.append(member)
+        return members
 
     async def reaction_removed(self, reaction: discord.Reaction, user: discord.User):
         if self.setting_emojis: return # Don't change karma whilst adding/removing emojis
@@ -211,6 +253,6 @@ def setup(bot):
     check_folders()
     check_files()
     n = ReactKarma(bot)
-    bot.add_listener(n.reaction_added, "on_reaction_add")
+    bot.add_listener(n._reaction_added, "on_reaction_add")
     bot.add_listener(n.reaction_removed, "on_reaction_remove")
     bot.add_cog(ReactKarma(bot))
