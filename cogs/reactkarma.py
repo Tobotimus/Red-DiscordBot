@@ -54,6 +54,7 @@ class ReactKarma():
             top = 10
         elif top < 0:
             reverse=False
+            top = -top
         self.karma = dataIO.load_json(KARMA_PATH)
         members_sorted = sorted(self._get_all_members(),
                              key=lambda x: x.karma, reverse=reverse)
@@ -118,7 +119,7 @@ class ReactKarma():
         if response is not None:
            self._set_reaction(msg.server, response.reaction, DOWNVOTE)
         self.setting_emojis = False
-        msg = "Done! The downvote emoji in this server is now {}".format(self._get_emoji(msg.server, UPVOTE))
+        msg = "Done! The downvote emoji in this server is now {}".format(self._get_emoji(msg.server, DOWNVOTE))
         if response is None:
             msg = "Setting the downvote emoji was cancelled."
         await self.bot.say(msg)
