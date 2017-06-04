@@ -182,10 +182,9 @@ class General:
         
     @commands.command(no_pm=True, hidden=True)
     async def kys(self, user : discord.Member):
-        """Just for when someone is a disappointment.
-        
-        2 intensity levels!"""
-        msg = box("                     ,-------.                 /\n"
+        """Just for when someone is a disappointment."""
+        msg = box(
+            "                     ,-------.                 /\n"
             "                   ,'         `.           ,--'\n"
             "                 ,'             `.      ,-;--        _.-\n"
             "          BANG! /                 \ ---;-'  _.=.---''\n"
