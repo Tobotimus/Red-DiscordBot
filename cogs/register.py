@@ -139,7 +139,7 @@ class Register:
     async def _regedit_quiet(self, ctx, delete_after: float):
         """Make the bot clean up after a user registers.
         
-        <delete_after> is how long the bot will wait before cleaning up.
+        <delete_after> is how many seconds the bot will wait before cleaning up.
         Set to zero to disable quiet mode."""
         server = ctx.message.server
         if server.id not in self.settings:
