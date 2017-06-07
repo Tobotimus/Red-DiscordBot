@@ -13,7 +13,6 @@ SETTINGS_PATH = "{}/log_channels.json".format(FOLDER_PATH)
 DEFAULT_SETTINGS = []
 ENABLE = "enable"
 DISABLE = "disable"
-PRIVATE = "Private channel"
 
 class ErrorLogs():
     """Logs traceback of command errors in specified channels."""
@@ -58,17 +57,12 @@ class ErrorLogs():
         error_title = "Exception in command `{}` ¯\_(ツ)_/¯".format(ctx.command.qualified_name)
         log = "".join(traceback.format_exception(type(error), error,
                                                     error.__traceback__))
-        _channel_embed = ctx.message.channel
-        if _channel_embed.is_private:
-            _channel_embed = PRIVATE
-        else:
-            _channel_embed = _channel_embed.mention
+        channel = ctx.message.channel
         embed = discord.Embed(title=error_title, colour=discord.Colour.red(), timestamp=ctx.message.timestamp)
-        embed.add_field(name="Invoker", value=ctx.message.author.mention)
+        embed.add_field(name="Invoker", value="{}\n({})".format(ctx.message.author.mention, str(ctx.message.author)))
         embed.add_field(name="Content", value=ctx.message.content)
-        embed.add_field(name="Channel", value=_channel_embed)
-        embed.set_footer(text="UTC")
-        if _channel_embed != PRIVATE:
+        embed.add_field(name="Channel", value=("Private channel" if channel.is_private else "{}\n({})".format(channel.mention, channel.name)))
+        if not channel.is_private:
             embed.add_field(name="Server", value=ctx.message.server.name)
         for channel in destinations:
             try:
