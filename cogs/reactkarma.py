@@ -222,6 +222,11 @@ class ReactKarma():
             if emoji is None: 
                 emoji = u'👎'
             await self.bot.add_reaction(message, emoji)
+        elif "i'm trash" in message.content.lower() or "im trash" in message.content.lower():
+            emoji = self._get_emoji(message.server, UPVOTE)
+            if emoji is None:
+                emoji = u'??'
+            await self.bot.add_reaction(message, emoji)
 
     def _get_all_members(self):
         """Get a list of members which have karma.
