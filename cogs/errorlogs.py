@@ -1,3 +1,4 @@
+import sys
 import os
 import traceback
 import datetime
@@ -17,19 +18,19 @@ PRIVATE = "Private channel"
 class ErrorLogs():
     """Logs traceback of command errors in specified channels."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.log_channels = dataIO.load_json(SETTINGS_PATH)
 
     @commands.command(pass_context=True)
     @checks.is_contributor()
-    async def logerrors(self, ctx):
+    async def logerrors(self, ctx: commands.Context):
         """Toggle error logging in this channel."""
         channel = ctx.message.channel
         task = ENABLE
         if channel.id in self.log_channels:
             task = DISABLE
-        await self.bot.say("This will {} command error logging in this channel. Are you sure about this? Type `yes` to agree".format(task))
+        await self.bot.say("This will {} error logging in this channel. Are you sure about this? Type `yes` to agree".format(task))
         message = await self.bot.wait_for_message(author=ctx.message.author)
         if message is not None and message.content == 'yes':
             if task == ENABLE:
@@ -43,18 +44,18 @@ class ErrorLogs():
 
     @commands.command(name="raise", pass_context=True)
     @checks.is_contributor()
-    async def _raise(self, ctx):
-        """Raise an exception."""
+    async def _raise(self, ctx: commands.Context):
+        """Raise an exception. If you want to handle the exception, use 'true'."""
         await self.bot.say("I am raising an error right now.")
         raise Exception()
 
-    async def _on_command_error(self, error, ctx):
-        """Sends error info to log channels."""
-        if not self.log_channels:
+    async def _on_command_error(self, error, ctx: commands.Context):
+        """Fires when a command error occurs."""
+        if not self.log_channels or not isinstance(error, commands.CommandInvokeError):
             return
         destinations = [c for c in self.bot.get_all_channels() if c.id in self.log_channels]
         destinations += [c for c in self.bot.private_channels if c.id in self.log_channels]
-        error_title = "¯\_(ツ)_/¯ Exception in command '{}'".format(ctx.command.qualified_name)
+        error_title = "Exception in command `{}` ¯\_(ツ)_/¯".format(ctx.command.qualified_name)
         log = "".join(traceback.format_exception(type(error), error,
                                                     error.__traceback__))
         _channel_embed = ctx.message.channel
