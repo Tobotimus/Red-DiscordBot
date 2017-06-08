@@ -1,14 +1,17 @@
 import discord
 from discord.ext import commands
-from .utils.dataIO import dataIO
-from .utils import checks
+from cogs.utils.dataIO import dataIO
+from cogs.utils import checks
 import os
 import datetime
-import requests
 import json
 import r6sapi as api
 
-platforms = {
+FOLDER_PATH = "data/r6stats"
+SETTINGS_PATH = "{}/settings.json".format(FOLDER_PATH)
+DEFAULT_SETTINGS = {}
+
+PLATFORMS = {
     "xb1":          api.Platforms.XBOX,
     "xone":         api.Platforms.XBOX,
     "xbone":        api.Platforms.XBOX,
@@ -21,19 +24,19 @@ platforms = {
     "pc":           api.Platforms.UPLAY
 }
 
-r6db_platforms = {
+R6DB_PLATFORMS = {
     api.Platforms.XBOX:         "xbox.",
     api.Platforms.PLAYSTATION:  "ps4.",
     api.Platforms.UPLAY:        ""
 }
 
-colours = {
+PLATFORM_COLOURS = {
     api.Platforms.XBOX:         discord.colour.Colour.green(),
     api.Platforms.PLAYSTATION:  discord.colour.Colour.magenta(),
     api.Platforms.UPLAY:        discord.colour.Colour.blue()
 }
 
-regions = {
+REGIONS = {
     "na":       api.RankedRegions.NA,
     "us":       api.RankedRegions.NA,
     "america":  api.RankedRegions.NA,
@@ -45,7 +48,7 @@ regions = {
     "oceania":  api.RankedRegions.ASIA
 }
 
-region_names = {
+REGION_NAMES = {
     api.RankedRegions.ASIA: "Asia",
     api.RankedRegions.EU:   "EU",
     api.RankedRegions.NA:   "NA"
@@ -68,8 +71,7 @@ class R6Stats:
 
     def __init__(self, bot):
         self.bot = bot
-        self.path = "data/r6stats/settings.json"
-        self.settings = dataIO.load_json(self.path)
+        self.settings = dataIO.load_json(SETTINGS_PATH)
         if "email" not in self.settings or "password" not in self.settings:
             self.auth = None
         else:
@@ -83,7 +85,7 @@ class R6Stats:
         self.settings["email"] = email
         self.settings["password"] = password
         self.auth = api.Auth(email=email, password=password)
-        dataIO.save_json(self.path, self.settings)
+        dataIO.save_json(SETTINGS_PATH, self.settings)
         await self.bot.say("Settings saved.")
 
     @commands.group(aliases=["r6s", "stats"], invoke_without_command=True, pass_context=True)
@@ -107,7 +109,7 @@ class R6Stats:
             username = player.name
             data = discord.Embed(title=username, description="General stats. Use subcommands for more specific stats.")
             data.timestamp = datetime.datetime.now()
-            data.colour = colours.get(platform)
+            data.colour = PLATFORM_COLOURS.get(platform)
             data.set_thumbnail(url=player.icon_url)
             k_d = "{} - {}\n".format(player.kills, player.deaths) +\
                   "(Ratio: {})".format("{0:.2f}".format(player.kills / player.deaths) if (player.deaths != 0) else "-.--")
@@ -125,7 +127,7 @@ class R6Stats:
         
         Example: !r6s rank Tobotimus uplay NA"""
         await self.bot.send_typing(ctx.message.channel)
-        region = regions.get(region.lower())
+        region = REGIONS.get(region.lower())
         if region is None: 
             await self.bot.say("Invalid region, please use `eu`, `na`, `asia`.")
             return
@@ -143,9 +145,9 @@ class R6Stats:
             platform = player.platform
             username = player.name
             rank = await player.get_rank(region)
-            data = discord.Embed(title=username, description="Ranked stats for {} region".format(region_names.get(region)))
+            data = discord.Embed(title=username, description="Ranked stats for {} region".format(REGION_NAMES.get(region)))
             data.timestamp = datetime.datetime.now()
-            data.colour = colours.get(platform)
+            data.colour = PLATFORM_COLOURS.get(platform)
             if rank.get_bracket() != api.Rank.UNRANKED:
                 data.set_thumbnail(url=rank.get_icon_url())
             rank_s = "{}\n".format(rank.rank) +\
@@ -183,7 +185,7 @@ class R6Stats:
             username = player.name
             data = discord.Embed(title=username, description="Miscellaneous stats.")
             data.timestamp = datetime.datetime.now()
-            data.colour = colours.get(platform)
+            data.colour = PLATFORM_COLOURS.get(platform)
             data.set_thumbnail(url=player.icon_url)
             useful =  "**Assists:** {}\n".format(player.kill_assists) +\
                       "**Revives:** {}\n".format(player.revives) +\
@@ -201,15 +203,6 @@ class R6Stats:
                       "**Penetration Kills:** {}".format(player.penetration_kills)
             data.add_field(name="Hacker Rating", value=hacker)
             await self.bot.say(embed=data)
-
-    @commands.command(pass_context=True, aliases=["r6n", "r6name", "r6aliases"])
-    async def r6names(self, ctx, username, platform="Uplay"):
-        """Look up a player's aliases on R6DB.
-        
-        Example: !r6names Tobotimus"""
-        await self.bot.send_typing(ctx.message.channel)
-        platform = r6db_platforms.get(platforms.get(platform))
-        r = requests.Request(url= "https://{}r6db.com/api/v2/players/?name={}&exact=0".format(platform, username))
         
 
     async def request_player(self, username, platform):
@@ -217,7 +210,7 @@ class R6Stats:
             await self.bot.say("The owner needs to set the credentials first.\n"
                                 "See: `[p]r6auth`")
             return
-        platform = platforms.get(platform.lower())
+        platform = PLATFORMS.get(platform.lower())
         if platform is None:
             await self.bot.say("Invalid platform specified.")
             return
@@ -233,16 +226,14 @@ class R6Stats:
         return player
 
 def check_folders():
-    if not os.path.exists("data/r6stats"):
-        print("Creating data/r6stats folder...")
-        os.makedirs("data/r6stats")
+    if not os.path.exists(FOLDER_PATH):
+        print("Creating " + FOLDER_PATH + " folder...")
+        os.makedirs(FOLDER_PATH)
 
 
 def check_files():
-    f = "data/r6stats/settings.json"
-    data = {}
-    if not dataIO.is_valid_json(f):
-        dataIO.save_json(f, data)
+    if not dataIO.is_valid_json(SETTINGS_PATH):
+        dataIO.save_json(SETTINGS_PATH, DEFAULT_SETTINGS)
 
 def setup(bot):
     check_folders()

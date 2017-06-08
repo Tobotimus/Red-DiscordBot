@@ -8,9 +8,9 @@ from cogs.utils.dataIO import dataIO
 from cogs.utils.chat_formatting import inline, pagify, box
 from unicodedata import name, lookup
 
-DIR_PATH = "data/reactkarma"
-KARMA_PATH = "{}/karma.json".format(DIR_PATH)
-SETTINGS_PATH = "{}/settings.json".format(DIR_PATH)
+FOLDER_PATH = "data/reactkarma"
+KARMA_PATH = "{}/karma.json".format(FOLDER_PATH)
+SETTINGS_PATH = "{}/settings.json".format(FOLDER_PATH)
 DOWNVOTE = "downvote"
 UPVOTE = "upvote"
 
@@ -214,19 +214,6 @@ class ReactKarma():
             self.karma[user_id] = 0
         self.karma[user_id] += amount
         dataIO.save_json(KARMA_PATH, self.karma)
-        
-    async def _message_sent(self, message):
-        """Just for people the bot doesn't like"""
-        if message.author.id == "195803331329916928":
-            emoji = self._get_emoji(message.server, DOWNVOTE)
-            if emoji is None: 
-                emoji = u'👎'
-            await self.bot.add_reaction(message, emoji)
-        elif "i'm trash" in message.content.lower() or "im trash" in message.content.lower():
-            emoji = self._get_emoji(message.server, UPVOTE)
-            if emoji is None:
-                emoji = u'??'
-            await self.bot.add_reaction(message, emoji)
 
     def _get_all_members(self):
         """Get a list of members which have karma.
@@ -242,11 +229,10 @@ class ReactKarma():
             members.append(member)
         return members
 
-
 def check_folders():
-    if not os.path.exists(DIR_PATH):
-        print("Creating {} folder...".format(DIR_PATH))
-        os.makedirs(DIR_PATH)
+    if not os.path.exists(FOLDER_PATH):
+        print("Creating {} folder...".format(FOLDER_PATH))
+        os.makedirs(FOLDER_PATH)
 
 def check_files():
     if not dataIO.is_valid_json(KARMA_PATH):
@@ -260,5 +246,4 @@ def setup(bot):
     n = ReactKarma(bot)
     bot.add_listener(n._reaction_added, "on_reaction_add")
     bot.add_listener(n._reaction_removed, "on_reaction_remove")
-    bot.add_listener(n._message_sent, "on_message")
     bot.add_cog(n)

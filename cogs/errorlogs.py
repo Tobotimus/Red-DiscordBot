@@ -1,7 +1,5 @@
-import sys
 import os
 import traceback
-import datetime
 import discord
 from discord.ext import commands
 from cogs.utils import checks
@@ -22,7 +20,7 @@ class ErrorLogs():
         self.log_channels = dataIO.load_json(SETTINGS_PATH)
 
     @commands.command(pass_context=True)
-    @checks.is_contributor()
+    @checks.is_owner()
     async def logerrors(self, ctx: commands.Context):
         """Toggle error logging in this channel."""
         channel = ctx.message.channel
@@ -42,7 +40,7 @@ class ErrorLogs():
             await self.bot.say("The operation was cancelled.")
 
     @commands.command(name="raise", pass_context=True)
-    @checks.is_contributor()
+    @checks.is_owner()
     async def _raise(self, ctx: commands.Context):
         """Raise an exception. If you want to handle the exception, use 'true'."""
         await self.bot.say("I am raising an error right now.")
@@ -61,14 +59,20 @@ class ErrorLogs():
         embed = discord.Embed(title=error_title, colour=discord.Colour.red(), timestamp=ctx.message.timestamp)
         embed.add_field(name="Invoker", value="{}\n({})".format(ctx.message.author.mention, str(ctx.message.author)))
         embed.add_field(name="Content", value=ctx.message.content)
-        embed.add_field(name="Channel", value=("Private channel" if channel.is_private else "{}\n({})".format(channel.mention, channel.name)))
+        _channel_disp = "Private channel" if channel.is_private else "{}\n({})".format(channel.mention, channel.name)
+        embed.add_field(name="Channel", value=_channel_disp)
         if not channel.is_private:
             embed.add_field(name="Server", value=ctx.message.server.name)
         for channel in destinations:
             try:
                 await self.bot.send_message(channel, embed=embed)
-            except:
-                pass
+            except discord.errors.Forbidden: # If bot can't embed
+                msg = ("Invoker: {}\n"
+                       "Content: {}\n"
+                       "Channel: {}".format(str(ctx.message.author), ctx.message.content, _channel_disp))
+                if not channel.is_private:
+                    msg += "\nServer : {}".format(ctx.message.server.name)
+                await self.bot.send_message(channel, box(msg))
             for page in pagify(log):
                 await self.bot.send_message(channel, box(page, lang="py"))
 

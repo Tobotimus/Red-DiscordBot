@@ -929,8 +929,8 @@ class Owner:
         about = (
             "This is an instance of [Red, an open source Discord bot]({}) "
             "created by [Twentysix]({}) and improved by many.\n\n"
-            "This instance, [TARS]({}), is owned by {}, who has modified "
-            "and added new modules to Red with the help of other contributors.\n\n"
+            "This instance, [TARS]({}), is owned by {}. use `!contact` "
+            "to send him a PM.\n\n"
             "Red is backed by a passionate community who contributes and "
             "creates content for everyone to enjoy. [Join us today]({}) "
             "and help us improve!\n\n"
@@ -943,7 +943,7 @@ class Owner:
         embed.add_field(name="discord.py", value=dpy_version)
         embed.add_field(name="About Red", value=about, inline=False)
         if contributors:
-            embed.add_field(name="Contributors to this instance", value=contributors, inline=False)
+            embed.add_field(name="Contributors to Tobo's Cogs", value=contributors, inline=False)
         embed.set_thumbnail(url=self.bot.user.avatar_url)
         embed.set_footer(text="Bringing joy since 02 Jan 2016 (over "
                          "{} days ago!)".format(days_since))
