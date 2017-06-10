@@ -37,3 +37,12 @@ data
 /env
 /data/downloader
 /data/downloader
+/data/downloader
+/cogs/register.py
+/cogs/reactkarma.py
+/cogs/r6stats.py
+/cogs/gsheets.py
+/cogs/errorlogs.py
+/data/downloader
+/data/downloader/26-Cogs
+/data/downloader/Tobo-Cogs
