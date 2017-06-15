@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
-from .utils import checks
-from .utils.chat_formatting import pagify, box
+from cogs.utils import checks
+from cogs.utils.chat_formatting import pagify, box
 import logging
 from cogs.utils.dataIO import dataIO
 import os
@@ -89,7 +89,8 @@ def _generate_timespec(sec):
     def sort_key(kt):
         k, t = kt
         return t[0]
-    for unit, kt in sorted(UNIT_SUF_TABLE.items(), key=sort_key, reverse=True):
+    for unit, kt in sorted(UNIT_SUF_TABLE.items(), key=sort_key, 
+                           reverse=True):
         secs, suf = kt
         q = sec // secs
         if q:
@@ -114,10 +115,12 @@ class Punish:
 
     @commands.command(pass_context=True, no_pm=True)
     @checks.mod_or_permissions(manage_messages=True)
-    async def cpunish(self, ctx, user: discord.Member, duration: str=None, *, reason: str=None):
+    async def cpunish(self, ctx, user: discord.Member, duration: str=None, *, 
+                      reason: str=None):
         """Same as punish but cleans up after itself and the target"""
 
-        success = await self._punish_cmd_common(ctx, user, duration, reason, quiet=True)
+        success = await self._punish_cmd_common(ctx, user, duration, reason, 
+                                                quiet=True)
 
         if not success:
             return
@@ -126,20 +129,25 @@ class Punish:
             return m.id == ctx.message.id or m.author == user
 
         try:
-            await self.bot.purge_from(ctx.message.channel, limit=PURGE_MESSAGES + 1, check=check)
+            await self.bot.purge_from(ctx.message.channel, 
+                                      limit=PURGE_MESSAGES + 1, 
+                                      check=check)
         except discord.errors.Forbidden:
-            await self.bot.say("Punishment set, but I need permissions to manage messages to clean up.")
+            await self.bot.say("Punishment set, but I need permissions "
+                               "to manage messages to clean up.")
 
     @commands.command(pass_context=True, no_pm=True)
     @checks.mod_or_permissions(manage_messages=True)
-    async def punish(self, ctx, user: discord.Member, duration: str=None, *, reason: str=None):
+    async def punish(self, ctx, user: discord.Member, duration: str=None, *, 
+                     reason: str=None):
         """Puts a user into timeout for a specified time period, with an optional reason.
         Time specification is any combination of number with the units s,m,h,d.
         Example: !punish @idiot 1.1h10m Enough bitching already!"""
 
         await self._punish_cmd_common(ctx, user, duration, reason)
 
-    @commands.command(pass_context=True, no_pm=True, name='lspunish')
+    @commands.command(pass_context=True, no_pm=True, 
+                      name='lspunish', aliases=['muted'])
     @checks.mod_or_permissions(manage_messages=True)
     async def list_punished(self, ctx):
         """Shows a table of punished users with time, mod and reason.
@@ -213,7 +221,8 @@ class Punish:
         elif role:
             await self.bot.say("That user wasn't punished.")
         else:
-            await self.bot.say("The punish role couldn't be found in this server.")
+            await self.bot.say("The punish role couldn't be found "
+                               "in this server.")
 
     @commands.command(pass_context=True, no_pm=True)
     @checks.mod_or_permissions(manage_messages=True)
@@ -229,25 +238,30 @@ class Punish:
 
         perms = server.me.server_permissions
         if not perms.manage_roles and perms.manage_channels:
-            await self.bot.say("The Manage Roles and Manage Channels permissions are required to use this command.")
+            await self.bot.say("The Manage Roles and Manage Channels "
+                               "permissions are required to use this command.")
             return
 
         if not role:
-            msg = "The %s role doesn't exist; Creating it now... " % default_name
+            msg = ("The %s role doesn't exist; "
+                   "Creating it now... " % default_name)
 
             msgobj = await self.bot.say(msg)
 
             perms = discord.Permissions.none()
-            role = await self.bot.create_role(server, name=default_name, permissions=perms)
+            role = await self.bot.create_role(
+                server, name=default_name, permissions=perms)
         else:
             msgobj = await self.bot.say('Punish role exists... ')
 
         if role.position != (server.me.top_role.position - 1):
             if role < server.me.top_role:
-                msgobj = await self.bot.edit_message(msgobj, msgobj.content + 'moving role to higher position... ')
+                msgobj = await self.bot.edit_message(
+                    msgobj, msgobj.content + 'moving role to higher position... ')
                 await self.bot.move_role(server, role, server.me.top_role.position - 1)
             else:
-                await self.bot.edit_message(msgobj, msgobj.content + 'role is too high to manage.'
+                await self.bot.edit_message(msgobj, msgobj.content + 
+                                            'role is too high to manage.'
                                             ' Please move it to below my highest role.')
                 return
 
@@ -276,7 +290,8 @@ class Punish:
         if create and not role:
             perms = server.me.server_permissions
             if not perms.manage_roles and perms.manage_channels:
-                await self.bot.say("The Manage Roles and Manage Channels permissions are required to use this command.")
+                await self.bot.say("The Manage Roles and Manage Channels permissions "
+                                   "are required to use this command.")
                 return None
 
             else:
@@ -287,11 +302,13 @@ class Punish:
 
                 log.debug('Creating punish role in %s' % server.name)
                 perms = discord.Permissions.none()
-                role = await self.bot.create_role(server, name=default_name, permissions=perms)
-                await self.bot.move_role(server, role, server.me.top_role.position - 1)
-
+                role = await self.bot.create_role(server, name=default_name, 
+                                                  permissions=perms)
+                await self.bot.move_role(server, role, 
+                                         server.me.top_role.position - 1)
                 if not quiet:
-                    msgobj = await self.bot.edit_message(msgobj, msgobj.content + 'configuring channels... ')
+                    msgobj = await self.bot.edit_message(msgobj, msgobj.content + 
+                                                         'configuring channels... ')
 
                 for channel in server.channels:
                     await self.setup_channel(channel, role)
@@ -409,7 +426,6 @@ class Punish:
 
         if note:
             msg += ' ' + note
-
         if server.id not in self.json:
             self.json[server.id] = {}
 
@@ -420,6 +436,13 @@ class Punish:
         }
 
         await self.bot.add_roles(member, role)
+        await self.bot.send_message(member, (
+            "You were punished in {server_name} for {duration} "
+            "by {moderator}. Reason given: {reason}"
+            "".format(server_name=server.name, 
+                      duration=_generate_timespec(duration), 
+                      moderator=ctx.message.author.name, 
+                      reason=reason)))
         self.save()
 
         # schedule callback for role removal
@@ -495,7 +518,8 @@ class Punish:
 
         role = await self.get_role(before.server)
         if role and role in before.roles and role not in after.roles:
-            msg = 'Your punishment in %s was ended early by a moderator/admin.' % before.server.name
+            msg = ('Your punishment in %s was ended early '
+                   'by a moderator/admin.' % before.server.name)
             if self.json[sid][before.id]['reason']:
                 msg += '\nReason was: ' + self.json[sid][before.id]['reason']
 
