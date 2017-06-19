@@ -436,13 +436,16 @@ class Punish:
         }
 
         await self.bot.add_roles(member, role)
-        await self.bot.send_message(member, (
-            "You were punished in {server_name} for {duration} "
-            "by {moderator}. Reason given: {reason}"
-            "".format(server_name=server.name, 
-                      duration=_generate_timespec(duration), 
-                      moderator=ctx.message.author.name, 
-                      reason=reason)))
+        try:
+            await self.bot.send_message(member, (
+                "You were punished in {server_name} for {duration} "
+                "by {moderator}. Reason given: {reason}"
+                "".format(server_name=server.name, 
+                          duration=_generate_timespec(duration), 
+                          moderator=ctx.message.author.name, 
+                          reason=reason)))
+        except discord.errors.Forbidden:
+            pass
         self.save()
 
         # schedule callback for role removal
