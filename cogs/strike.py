@@ -150,7 +150,7 @@ class Strike:
         
     # TODO : !forgive (manually remove a strike)
     @commands.command(pass_context=True, no_pm=True)
-	@checks.mod_or_permissions(kick_members=True)
+    @checks.mod_or_permissions(kick_members=True)
     async def forgive(self, ctx, user: discord.Member, count=1):
         """Manually removes strikes, most recent by default.
         Can specify how many strikes to remove."""
@@ -189,7 +189,7 @@ class Strike:
         
     # TODO : !strikes (a list of striked users)
     @commands.command(pass_context=True, no_pm=True)
-	@checks.mod_or_permissions(kick_members=True)
+    @checks.mod_or_permissions(kick_members=True)
     async def strikes(self,ctx):
         """List of all users currently striked"""
         server = ctx.message.server
