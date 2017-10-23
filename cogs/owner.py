@@ -568,7 +568,7 @@ class Owner:
         await self.bot.say("Mod role set to '{}'".format(role.name))
 
     @commands.group(pass_context=True)
-    @checks.is_owner()
+    @checks.admin_or_permissions(administrator=True)
     async def blacklist(self, ctx):
         """Blacklist management commands
 
@@ -717,7 +717,7 @@ class Owner:
             await self.bot.say("Update unsuccessful. Check your console for more info.")
 
     @commands.group(name="command", pass_context=True)
-    @checks.is_owner()
+    @checks.admin_or_permissions(administrator=True)
     async def command_disabler(self, ctx):
         """Disables/enables commands
 
