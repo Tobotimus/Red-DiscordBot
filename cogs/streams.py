@@ -444,7 +444,7 @@ class Streams:
             session = aiohttp.ClientSession()
             url = base_url + ",".join(streams_list)
             async with session.get(url, headers=header) as r:
-                data = await r.json()
+                data = await r.json(encoding='utf-8')
             if r.status == 200:
                 results.extend(data["users"])
             elif r.status == 400:
@@ -519,8 +519,7 @@ class Streams:
         avatar = ("https://picarto.tv/user_data/usrimg/{}/dsdefault.jpg{}"
                   "".format(data["name"].lower(), self.rnd_attr()))
         url = "https://picarto.tv/" + data["name"]
-        thumbnail = ("https://thumb.picarto.tv/thumbnail/{}.jpg"
-                     "".format(data["name"]))
+        thumbnail = data["thumbnails"]["web"]
         embed = discord.Embed(title=data["title"], url=url)
         embed.set_author(name=data["name"])
         embed.set_image(url=thumbnail + self.rnd_attr())
@@ -546,9 +545,13 @@ class Streams:
     def enable_or_disable_if_active(self, streams, stream, channel, _id=None):
         """Returns True if enabled or False if disabled"""
         for i, s in enumerate(streams):
-            if s["NAME"] != stream or s["ID"] != _id:
-                continue
-
+            stream_id = s.get("ID")
+            if stream_id and _id:     # ID is available, matching by ID is
+                if stream_id != _id:  # preferable
+                    continue
+            else:  # ID unavailable, matching by name
+                if s["NAME"] != stream:
+                    continue
             if channel.id in s["CHANNELS"]:
                 streams[i]["CHANNELS"].remove(channel.id)
                 if not s["CHANNELS"]:

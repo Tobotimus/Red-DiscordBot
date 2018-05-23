@@ -1,9 +1,8 @@
-
 ![intro](http://i.imgur.com/RgGlNpQ.jpg)
 
 # Red - A fully customizable Discord bot
 #### *Music, admin, trivia, fun commands and much more!*
-[<img src="https://img.shields.io/badge/Support-me!-orange.svg">](https://www.patreon.com/Twentysix26)  [<img src="https://img.shields.io/badge/discord-py-blue.svg">](https://github.com/Rapptz/discord.py) [<img src="https://discordapp.com/api/guilds/133049272517001216/widget.png?style=shield">](https://discord.gg/red) [![Build Status](https://travis-ci.org/Twentysix26/Red-DiscordBot.svg?branch=develop)](https://travis-ci.org/Twentysix26/Red-DiscordBot)
+[<img src="https://img.shields.io/badge/Support-Red!-orange.svg">](https://www.patreon.com/Red_Devs)  [<img src="https://img.shields.io/badge/discord-py-blue.svg">](https://github.com/Rapptz/discord.py) [<img src="https://discordapp.com/api/guilds/133049272517001216/widget.png?style=shield">](https://discord.gg/red) [![Build Status](https://api.travis-ci.org/Cog-Creators/Red-DiscordBot.svg?branch=develop)](https://travis-ci.org/Cog-Creators/Red-DiscordBot) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
 **Red** is a fully modular bot – meaning all features and commands can be enabled/disabled to your liking, making it completely customizable.  
 This is also a *self-hosted bot* – meaning you will need to host and maintain your own instance. You can turn Red into an admin bot, music bot, trivia bot, new best friend or all of these together!  
@@ -13,7 +12,7 @@ The default set of modules includes and is not limited to:
 * Moderation features (kick/ban/softban/hackban, mod-log, filter, chat cleanup)
 * Trivia (lists are included and can be easily added)
 * Music features (YouTube, SoundCloud, local files, playlists, queues)
-* Stream alerts (Twitch, Hitbox, Beam)
+* Stream alerts (Twitch, Mixer, Smashcast)
 * Slot machines
 * Custom commands
 * Imgur/gif search
@@ -25,7 +24,7 @@ Additionally, other modules (cogs) can be easily found and added from our growin
 * Reminders
 * Raffles
 * Leveler (increase levels for server participation)
-* DotA
+* Sound effects
 * And much, much more!
 
 Feel free to take a [peek](https://cogs.red/)!

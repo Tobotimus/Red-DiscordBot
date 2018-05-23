@@ -57,9 +57,9 @@ class Trivia:
             await self.bot.say("Alright, I won't embarass you at trivia anymore.")
         else:
             self.settings["TRIVIA_BOT_PLAYS"] = True
-            await self.bot.say("I'll gain a point everytime you don't answer in time.")
+            await self.bot.say("I'll gain a point every time you don't answer in time.")
         dataIO.save_json(self.file_path, self.settings)
-    
+
     @triviaset.command()
     async def payout(self, amount : int):
         """Amount to pay to winner"""
@@ -69,7 +69,7 @@ class Trivia:
             await self.bot.say("Winner will recieve {} credits".format(str(amount)))
         else:
             await self.bot.say("Payout must be greater than 0")
-            
+
     @triviaset.command()
     async def players(self, amount : int):
         """Minimum amount of players before payout is given, must be atleast 1"""
@@ -79,7 +79,7 @@ class Trivia:
             await self.bot.say("{} Players needed for payout".format(str(amount)))
         else:
             await self.bot.say("Must be a number greater than 0")
-            
+
     @commands.command(pass_context=True)
     async def trivia(self, ctx, list_name : str=None):
         """Start a trivia session with the specified list
@@ -175,7 +175,7 @@ class TriviaSession():
         if self.score_list:
             await self.send_table()
             # Award winner with credits
-            
+
             payout = self.settings["TRIVIA_PAYOUT"] * self.players
             server = self.channel.server
             user = server.get_member_named(self.score_list[0][0])
@@ -191,7 +191,7 @@ class TriviaSession():
                     await trivia_manager.bot.say("{} has won! Congratulations! Play against at least {} people and you can earn yourself some credits."
                                         "".format(user.mention,self.settings["MIN_PLAYERS"]))
         trivia_manager.trivia_sessions.remove(self)
-   
+
     async def PlayerCheck(self):
         count = 0
         bot = trivia_manager.bot.user.name + "#" + trivia_manager.bot.user.discriminator
@@ -202,7 +202,7 @@ class TriviaSession():
         if self.settings["MIN_PLAYERS"] is None:
             return False
         return count >= self.settings["MIN_PLAYERS"]
-        
+
     def guess_encoding(self, trivia_list):
         with open(trivia_list, "rb") as f:
             try:

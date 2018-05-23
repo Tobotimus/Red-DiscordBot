@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from cogs.utils import checks
+from cogs.utils.converters import GlobalUser
 from __main__ import set_cog
 from .utils.dataIO import dataIO
 from .utils.chat_formatting import pagify, box
@@ -577,7 +578,7 @@ class Owner:
             await self.bot.send_cmd_help(ctx)
 
     @blacklist.command(name="add")
-    async def _blacklist_add(self, user: discord.Member):
+    async def _blacklist_add(self, user: GlobalUser):
         """Adds user to Red's global blacklist"""
         if user.id not in self.global_ignores["blacklist"]:
             self.global_ignores["blacklist"].append(user.id)
@@ -587,7 +588,7 @@ class Owner:
             await self.bot.say("User is already blacklisted.")
 
     @blacklist.command(name="remove")
-    async def _blacklist_remove(self, user: discord.Member):
+    async def _blacklist_remove(self, user: GlobalUser):
         """Removes user from Red's global blacklist"""
         if user.id in self.global_ignores["blacklist"]:
             self.global_ignores["blacklist"].remove(user.id)
@@ -625,7 +626,7 @@ class Owner:
             await self.bot.send_cmd_help(ctx)
 
     @whitelist.command(name="add")
-    async def _whitelist_add(self, user: discord.Member):
+    async def _whitelist_add(self, user: GlobalUser):
         """Adds user to Red's global whitelist"""
         if user.id not in self.global_ignores["whitelist"]:
             if not self.global_ignores["whitelist"]:
@@ -639,7 +640,7 @@ class Owner:
             await self.bot.say("User is already whitelisted.")
 
     @whitelist.command(name="remove")
-    async def _whitelist_remove(self, user: discord.Member):
+    async def _whitelist_remove(self, user: GlobalUser):
         """Removes user from Red's global whitelist"""
         if user.id in self.global_ignores["whitelist"]:
             self.global_ignores["whitelist"].remove(user.id)
@@ -1012,7 +1013,7 @@ class Owner:
         for user_id in _list:
             user = discord.utils.get(self.bot.get_all_members(), id=user_id)
             if user:
-                users.append(str(user))
+                users.append("{} ({})".format(user, user.id))
 
         if users:
             not_found = total - len(users)
