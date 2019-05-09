@@ -1,7 +1,7 @@
 import enum
 from typing import Tuple
 
-__all__ = ["BaseDriver", "IdentifierData"]
+__all__ = ["BaseDriver", "IdentifierData", "ConfigCategory"]
 
 
 class ConfigCategory(enum.Enum):
