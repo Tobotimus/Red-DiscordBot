@@ -1,6 +1,6 @@
 import re
 from getpass import getpass
-from typing import Match, Pattern, Tuple, Optional, AsyncIterator
+from typing import Match, Pattern, Tuple, Optional, AsyncIterator, Union
 from urllib.parse import quote_plus
 
 try:
@@ -243,6 +243,50 @@ class MongoDriver(BaseDriver):
             )
             for result in results:
                 await db[result["name"]].delete_many(pkey_filter)
+
+    async def inc(self, identifier_data: IdentifierData, value: Union[int, float], default):
+        if len(identifier_data.identifiers) == 0:
+            raise ValueError("Cannot call incr on a group!")
+
+        uuid = self._escape_key(identifier_data.uuid)
+        primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+        dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
+        mongo_collection = self.get_collection(identifier_data.category)
+        mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
+
+        if default != 0:
+            exists = await mongo_collection.find_one(
+                mongo_filter, projection={"_id": False, dot_identifiers: True}
+            )
+            if not exists:
+                curr_value = default
+                await self.set(identifier_data, curr_value + value)
+                return curr_value + value
+
+        # If default is 0 we can do an atomic inc
+        update_stmt = {"$inc": {dot_identifiers: value}}
+        result = await mongo_collection.find_one_and_update(
+            mongo_filter,
+            update=update_stmt,
+            upsert=True,
+            projection={dot_identifiers: True},
+            return_document=pymongo.ReturnDocument.AFTER,
+        )
+
+        partial = result
+        for ident in map(self._escape_key, identifier_data.identifiers):
+            partial = partial[ident]
+
+        return partial
+
+    async def toggle(self, identifier_data: IdentifierData, default) -> bool:
+        try:
+            curr_val = await self.get(identifier_data)
+        except KeyError:
+            curr_val = default
+
+        await self.set(identifier_data, not curr_val)
+        return not curr_val
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:

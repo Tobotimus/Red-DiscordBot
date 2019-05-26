@@ -206,6 +206,39 @@ class BaseDriver(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def inc(
+        self, identifier_data: IdentifierData, value: Union[int, float], default: Union[int, float]
+    ) -> Union[int, float]:
+        """
+        Increments the value specified by the given identifiers.
+
+        Config should make the guarantee that the value to write to is a number, if it's not,
+        this method should throw an error.
+
+        Parameters
+        ----------
+        identifier_data
+        value
+        default
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def toggle(self, identifier_data: IdentifierData, default: bool) -> bool:
+        """
+        Toggles the value specified by the given identifiers.
+
+        Config should make the guarantee that the value to write to is a boolean, if it's not,
+        this method should throw an error.
+
+        Parameters
+        ----------
+        identifier_data
+        default
+        """
+        raise NotImplementedError
+
     @classmethod
     @abc.abstractmethod
     def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:

@@ -3,7 +3,7 @@ import json
 import weakref
 import logging
 from pathlib import Path
-from typing import Dict, Any, Tuple, AsyncIterator, Optional
+from typing import Dict, Any, Tuple, AsyncIterator, Optional, Union
 
 from redbot.core import data_manager
 from .. import errors
@@ -153,6 +153,40 @@ class JsonDriver(BaseDriver):
             pass
         else:
             await self.jsonIO._threadsafe_save_json(self.data)
+
+    async def inc(
+        self, identifier_data: IdentifierData, value: Union[int, float], default: Union[int, float]
+    ):
+        partial = self.data
+        full_identifiers = identifier_data.to_tuple()
+        for i in full_identifiers[:-1]:
+            if i not in partial:
+                partial[i] = {}
+            partial = partial[i]
+
+        curr_val = partial.get(full_identifiers[-1], default)
+        if not isinstance(curr_val, (int, float)):
+            raise errors.StoredTypeError(f'Cannot increment non-numeric value "{curr_val}"')
+        partial[full_identifiers[-1]] = curr_val + value
+        await self.jsonIO._threadsafe_save_json(self.data)
+
+        return partial[full_identifiers[-1]]
+
+    async def toggle(self, identifier_data: IdentifierData, default: bool):
+        partial = self.data
+        full_identifiers = identifier_data.to_tuple()
+        for i in full_identifiers[:-1]:
+            if i not in partial:
+                partial[i] = {}
+            partial = partial[i]
+
+        curr_val = partial.get(full_identifiers[-1], default)
+        if not isinstance(curr_val, bool):
+            raise errors.StoredTypeError(f'Cannot toggle non-boolean value "{curr_val}"')
+        partial[full_identifiers[-1]] = not curr_val
+        await self.jsonIO._threadsafe_save_json(self.data)
+
+        return partial[full_identifiers[-1]]
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:
