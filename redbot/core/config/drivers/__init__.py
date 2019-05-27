@@ -1,21 +1,20 @@
 import enum
 from typing import Optional, Type
 
-from .. import data_manager
-from .base import IdentifierData, BaseDriver, ConfigCategory
+from ... import data_manager
+from .base import BaseDriver
 from .json import JsonDriver
 from .mongo import MongoDriver
 from .postgres import PostgresDriver
 
 __all__ = [
-    "get_driver",
-    "ConfigCategory",
-    "IdentifierData",
     "BaseDriver",
     "JsonDriver",
     "MongoDriver",
     "PostgresDriver",
     "BackendType",
+    "get_driver",
+    "get_driver_class",
 ]
 
 
@@ -44,8 +43,8 @@ def get_driver_class(storage_type: Optional[BackendType] = None) -> Type[BaseDri
 
     Returns
     -------
-    Type[BaseDriver]
-        A subclass of `BaseDriver`.
+    Subclass of `BaseDriver`
+        A subclass of `BaseDriver` as the raw class.
 
     Raises
     ------

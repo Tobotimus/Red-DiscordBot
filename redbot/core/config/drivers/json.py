@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, AsyncIterator, Optional, Union
 
 from redbot.core import data_manager
-from .. import errors
-from ..json_io import JsonIO
+from ... import errors
+from ...json_io import JsonIO
 
-from .base import BaseDriver, IdentifierData, ConfigCategory
+from .base import BaseDriver
+from redbot.core.config.utils import ConfigCategory
+from redbot.core.config.identifier_data import IdentifierData
 
 __all__ = ["JsonDriver"]
 

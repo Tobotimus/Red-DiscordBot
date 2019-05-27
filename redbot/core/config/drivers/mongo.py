@@ -11,8 +11,9 @@ except ModuleNotFoundError:
     motor = None
     pymongo = None
 
-from .. import errors
-from .base import BaseDriver, IdentifierData
+from ... import errors
+from .base import BaseDriver
+from redbot.core.config.identifier_data import IdentifierData
 
 __all__ = ["MongoDriver"]
 

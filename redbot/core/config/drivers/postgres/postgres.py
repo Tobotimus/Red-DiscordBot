@@ -8,8 +8,10 @@ try:
 except ModuleNotFoundError:
     asyncpg = None
 
-from ... import data_manager, errors
-from ..base import BaseDriver, IdentifierData, ConfigCategory
+from .... import data_manager, errors
+from ..base import BaseDriver
+from redbot.core.config.utils import ConfigCategory
+from redbot.core.config.identifier_data import IdentifierData
 from ..log import log
 
 __all__ = ["PostgresDriver"]

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 import asyncio
+import logging
 import os
 import sys
 from copy import deepcopy
-from datetime import datetime as dt
 from pathlib import Path
-import logging
 from typing import Dict, Any, Optional
 
 import appdirs
@@ -15,8 +14,8 @@ import redbot.logging
 from redbot.core.cli import confirm
 from redbot.core.json_io import JsonIO
 from redbot.core.utils import safe_delete, create_backup as _create_backup
-from redbot.core import config, data_manager, drivers
-from redbot.core.drivers import BackendType, IdentifierData
+from redbot.core import config, data_manager
+from redbot.core.config import drivers, IdentifierData, BackendType
 
 conversion_log = logging.getLogger("red.converter")
 
@@ -286,8 +285,8 @@ async def create_backup(instance: str) -> None:
     elif backend_type != BackendType.JSON:
         await do_migration(backend_type, BackendType.JSON)
     print("Backing up the instance's data...")
-    success = await _create_backup()
-    if success is not None:
+    backup_fpath = await _create_backup()
+    if backup_fpath is not None:
         print(f"A backup of {instance} has been made. It is at {backup_fpath}")
     else:
         print("Creating the backup failed.")

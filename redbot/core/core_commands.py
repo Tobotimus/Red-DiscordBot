@@ -22,7 +22,6 @@ from . import (
     VersionInfo,
     checks,
     commands,
-    drivers,
     errors,
     i18n,
     config,
@@ -1253,11 +1252,11 @@ class Core(commands.Cog, CoreLogic):
         else:
             dest = Path(backup_dir)
 
-        driver_cls = drivers.get_driver_class()
-        if driver_cls != drivers.JsonDriver:
+        driver_cls = config.get_driver_class()
+        if driver_cls != config.drivers.JsonDriver:
             await ctx.send(_("Converting data to JSON for backup..."))
             async with ctx.typing():
-                await config.migrate(driver_cls, drivers.JsonDriver)
+                await config.migrate(driver_cls, config.drivers.JsonDriver)
 
         log.info("Creating backup for this instance...")
         try:

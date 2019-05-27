@@ -4,6 +4,9 @@ import pytest
 
 
 # region Register Tests
+from redbot.core.config import ConfigCategory
+
+
 @pytest.mark.asyncio
 async def test_config_register_global(config):
     config.register_global(enabled=False)
@@ -19,9 +22,9 @@ def test_config_register_global_badvalues(config):
 @pytest.mark.asyncio
 async def test_config_register_guild(config, empty_guild):
     config.register_guild(enabled=False, some_list=[], some_dict={})
-    assert config.defaults[config.GUILD]["enabled"] is False
-    assert config.defaults[config.GUILD]["some_list"] == []
-    assert config.defaults[config.GUILD]["some_dict"] == {}
+    assert config.defaults[ConfigCategory.GUILD.value]["enabled"] is False
+    assert config.defaults[ConfigCategory.GUILD.value]["some_list"] == []
+    assert config.defaults[ConfigCategory.GUILD.value]["some_dict"] == {}
 
     assert await config.guild(empty_guild).enabled() is False
     assert await config.guild(empty_guild).some_list() == []
@@ -31,28 +34,28 @@ async def test_config_register_guild(config, empty_guild):
 @pytest.mark.asyncio
 async def test_config_register_channel(config, empty_channel):
     config.register_channel(enabled=False)
-    assert config.defaults[config.CHANNEL]["enabled"] is False
+    assert config.defaults[ConfigCategory.CHANNEL.value]["enabled"] is False
     assert await config.channel(empty_channel).enabled() is False
 
 
 @pytest.mark.asyncio
 async def test_config_register_role(config, empty_role):
     config.register_role(enabled=False)
-    assert config.defaults[config.ROLE]["enabled"] is False
+    assert config.defaults[ConfigCategory.ROLE.value]["enabled"] is False
     assert await config.role(empty_role).enabled() is False
 
 
 @pytest.mark.asyncio
 async def test_config_register_member(config, empty_member):
     config.register_member(some_number=-1)
-    assert config.defaults[config.MEMBER]["some_number"] == -1
+    assert config.defaults[ConfigCategory.MEMBER.value]["some_number"] == -1
     assert await config.member(empty_member).some_number() == -1
 
 
 @pytest.mark.asyncio
 async def test_config_register_user(config, empty_user):
     config.register_user(some_value=None)
-    assert config.defaults[config.USER]["some_value"] is None
+    assert config.defaults[ConfigCategory.USER.value]["some_value"] is None
     assert await config.user(empty_user).some_value() is None
 
 

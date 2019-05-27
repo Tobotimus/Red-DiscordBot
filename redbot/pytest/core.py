@@ -7,7 +7,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from redbot.core import Config
 from redbot.core.bot import Red
-from redbot.core import config as config_module, drivers
+from redbot.core import config as config_module
 
 __all__ = [
     "monkeysession",
@@ -59,12 +59,12 @@ def driver(tmpdir_factory):
 
     rand = str(uuid.uuid4())
     path = Path(str(tmpdir_factory.mktemp(rand)))
-    return drivers.get_driver("PyTest", str(random.randint(1, 999999)), data_path_override=path)
+    return config_module.get_driver("PyTest", str(random.randint(1, 999999)), data_path_override=path)
 
 
 @pytest.fixture()
 def config(driver):
-    config_module._config_cache = weakref.WeakValueDictionary()
+    config_module.config._config_cache.clear()
     conf = Config(cog_name="PyTest", unique_identifier=driver.unique_cog_identifier, driver=driver)
     yield conf
 
@@ -74,7 +74,7 @@ def config_fr(driver):
     """
     Mocked config object with force_register enabled.
     """
-    config_module._config_cache = weakref.WeakValueDictionary()
+    config_module.config._config_cache.clear()
     conf = Config(
         cog_name="PyTest",
         unique_identifier=driver.unique_cog_identifier,

@@ -416,20 +416,20 @@ Value
 Driver Reference
 ****************
 
-.. automodule:: redbot.core.drivers
+.. automodule:: redbot.core.config.drivers
     :members:
 
 Base Driver
 ^^^^^^^^^^^
-.. autoclass:: redbot.core.drivers.BaseDriver
+.. autoclass:: redbot.core.config.drivers.BaseDriver
     :members:
 
 JSON Driver
 ^^^^^^^^^^^
-.. autoclass:: redbot.core.drivers.JsonDriver
+.. autoclass:: redbot.core.config.drivers.BaseDriver
     :members:
 
 Mongo Driver
 ^^^^^^^^^^^^
-.. autoclass:: redbot.core.drivers.MongoDriver
+.. autoclass:: redbot.core.config.drivers.BaseDriver
     :members:
