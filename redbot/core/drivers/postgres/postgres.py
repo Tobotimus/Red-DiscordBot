@@ -1,22 +1,14 @@
 import getpass
 import json
 from pathlib import Path
-from typing import (
-    Optional,
-    Any,
-    AsyncIterator,
-    Tuple,
-    Union,
-    Callable,
-    List,
-)
+from typing import Optional, Any, AsyncIterator, Tuple, Union, Callable, List
 
 try:
     import asyncpg
 except ModuleNotFoundError:
     asyncpg = None
 
-from ... import errors
+from ... import data_manager, errors
 from ..base import BaseDriver, IdentifierData, ConfigCategory
 from ..log import log
 
@@ -30,11 +22,6 @@ DROP_DDL_SCRIPT_PATH = _PKG_PATH / "drop_ddl.sql"
 class PostgresDriver(BaseDriver):
 
     _pool: Optional["asyncpg.pool.Pool"] = None
-
-    def __init__(self, cog_name, identifier, **kwargs):
-        self._schema_name: str = '"' + ".".join((cog_name, identifier)) + '"'
-
-        super().__init__(cog_name, identifier, **kwargs)
 
     @classmethod
     async def initialize(cls, **storage_details) -> None:
@@ -91,7 +78,7 @@ class PostgresDriver(BaseDriver):
         try:
             result = await self._execute(
                 f"""
-                SELECT config.get(
+                SELECT red_config.get(
                   cog_name := $1,
                   cog_id := $2,
                   config_category := $3,
@@ -106,7 +93,7 @@ class PostgresDriver(BaseDriver):
                 pkey_len,
                 pkeys,
                 list(identifier_data.identifiers),
-                method=self._pool.fetchval
+                method=self._pool.fetchval,
             )
         except asyncpg.UndefinedTableError:
             raise KeyError from None
@@ -122,7 +109,7 @@ class PostgresDriver(BaseDriver):
         try:
             await self._execute(
                 f"""
-                SELECT config.set(
+                SELECT red_config.set(
                   cog_name := $1,
                   cog_id := $2,
                   config_category := $3,
@@ -150,7 +137,7 @@ class PostgresDriver(BaseDriver):
         try:
             await self._execute(
                 f"""
-                SELECT config.clear(
+                SELECT red_config.clear(
                   cog_name := $1,
                   cog_id := $2,
                   config_category := $3,
@@ -174,7 +161,7 @@ class PostgresDriver(BaseDriver):
         try:
             return await self._execute(
                 f"""
-                SELECT config.inc(
+                SELECT red_config.inc(
                   cog_name := $1,
                   cog_id := $2,
                   config_category := $3,
@@ -195,7 +182,7 @@ class PostgresDriver(BaseDriver):
                 pkey_type,
                 pkeys,
                 list(identifier_data.identifiers),
-                method=self._pool.fetchval
+                method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
@@ -205,7 +192,7 @@ class PostgresDriver(BaseDriver):
         try:
             return await self._execute(
                 f"""
-                SELECT config.inc(
+                SELECT red_config.inc(
                   cog_name := $1,
                   cog_id := $2,
                   config_category := $3,
@@ -224,14 +211,14 @@ class PostgresDriver(BaseDriver):
                 pkey_type,
                 pkeys,
                 list(identifier_data.identifiers),
-                method=self._pool.fetchval
+                method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:
-        query = "SELECT cog_name, cog_id FROM config.red_cogs"
+        query = "SELECT cog_name, cog_id FROM red_config.red_cogs"
         log.invisible(query)
         async with cls._pool.acquire() as conn, conn.transaction():
             async for row in conn.cursor(query):
@@ -273,25 +260,11 @@ class PostgresDriver(BaseDriver):
                 else:
                     break
         if drop_db is True:
-            async with cls._pool.acquire() as conn:
-                settings = conn.get_settings()
-                db_name = settings.database
-                await conn.execute(f"DROP DATABASE $1", db_name)
+            storage_details = data_manager.storage_details()
+            await cls._pool.execute(f"DROP DATABASE $1", storage_details["database"])
         else:
-            async with cls._pool.acquire() as conn, conn.transaction():
-                async for cog_name, cog_id in cls.aiter_cogs():
-                    schema_name = await conn.fetchval(
-                        """
-                        SELECT schema_name
-                         FROM config.red_cogs
-                         WHERE cog_name = $1 AND cog_id = $2
-                        """,
-                        cog_name,
-                        cog_id,
-                    )
-                    await conn.execute("DROP SCHEMA $1 CASCADE", schema_name)
-                with DROP_DDL_SCRIPT_PATH.open() as fs:
-                    await conn.execute(fs.read())
+            with DROP_DDL_SCRIPT_PATH.open() as fs:
+                await cls._pool.execute(fs.read())
 
     @classmethod
     async def _execute(cls, query: str, *args, method: Optional[Callable] = None) -> Any:
