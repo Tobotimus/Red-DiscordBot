@@ -1,5 +1,5 @@
 import asyncio
-from copy import deepcopy
+import pickle
 from typing import Any, Awaitable, AsyncContextManager, Optional, TYPE_CHECKING, TypeVar, Union
 
 from .identifier_data import IdentifierData
@@ -50,7 +50,7 @@ class ValueContextManager(Awaitable[_T], AsyncContextManager[_T]):
                 "list or dict) in order to use a config value as "
                 "a context manager."
             )
-        self.__original_value = deepcopy(self.raw_value)
+        self.__original_value = pickle.loads(pickle.dumps(self.raw_value, -1))
         return self.raw_value
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -73,18 +73,27 @@ class Value:
     ----------
     identifier_data : IdentifierData
         Information on identifiers for this value.
-    default
-        The default value for the data element that `identifiers` points at.
-    driver : `BaseDriver`
-        A reference to `Config.driver`.
 
     """
 
-    def __init__(self, identifier_data: IdentifierData, default_value, driver, config: "Config"):
+    def __init__(self, identifier_data: IdentifierData, config: "Config"):
         self.identifier_data = identifier_data
-        self.default = default_value
-        self.driver = driver
         self._config = config
+
+    @property
+    def default(self):
+        """The default value for the data element that `identifiers`
+        points at.
+        """
+        inner = self._config.defaults
+        try:
+            inner = inner[self.identifier_data.category]
+            for key in self.identifier_data.identifiers:
+                inner = inner[key]
+        except KeyError:
+            return
+        else:
+            return inner
 
     def get_lock(self) -> asyncio.Lock:
         """Get a lock to create a critical region where this value is accessed.
@@ -120,9 +129,9 @@ class Value:
         # noinspection PyProtectedMember
         return self._config._lock_cache.setdefault(self.identifier_data, asyncio.Lock())
 
-    async def _get(self, default=...):
+    async def _get(self, default: Any = ..., **kwargs):
         try:
-            ret = await self.driver.get(self.identifier_data)
+            ret = await self._config.driver.get(self.identifier_data)
         except KeyError:
             return default if default is not ... else self.default
         return ret
@@ -203,7 +212,7 @@ class Value:
         """
         if isinstance(value, dict):
             value = str_key_dict(value)
-        await self.driver.set(self.identifier_data, value=value)
+        await self._config.driver.set(self.identifier_data, value=value)
 
     async def inc(self, value, default: Optional[Union[int, float]] = None) -> Union[int, float]:
         """Increment and return the value of the data element pointed to by `identifiers`.
@@ -238,7 +247,7 @@ class Value:
         if not isinstance(default, (int, float)):
             raise ValueError("You must register or provide a numeric default to use this method.")
 
-        return await self.driver.inc(self.identifier_data, value, default=default)
+        return await self._config.driver.inc(self.identifier_data, value, default=default)
 
     async def toggle(self, default: Optional[bool] = None) -> bool:
         """Toggles a Boolean value between True and False.
@@ -266,10 +275,10 @@ class Value:
         if not isinstance(default, bool):
             raise ValueError("You must register or provide a boolean default to use this method.")
 
-        return await self.driver.toggle(self.identifier_data, default=default)
+        return await self._config.driver.toggle(self.identifier_data, default=default)
 
     async def clear(self):
         """
         Clears the value from record for the data element pointed to by `identifiers`.
         """
-        await self.driver.clear(self.identifier_data)
+        await self._config.driver.clear(self.identifier_data)

@@ -1,5 +1,5 @@
-import copy
 import json
+import pickle
 import weakref
 import logging
 from pathlib import Path
@@ -129,7 +129,7 @@ class JsonDriver(BaseDriver):
         full_identifiers = identifier_data.to_tuple()
         for i in full_identifiers:
             partial = partial[i]
-        return copy.deepcopy(partial)
+        return pickle.loads(pickle.dumps(partial, -1))
 
     async def set(self, identifier_data: IdentifierData, value=None):
         partial = self.data
@@ -141,7 +141,7 @@ class JsonDriver(BaseDriver):
                 # Tried to set sub-field of non-object
                 raise errors.CannotSetSubfield
 
-        partial[full_identifiers[-1]] = copy.deepcopy(value)
+        partial[full_identifiers[-1]] = pickle.loads(pickle.dumps(value, -1))
         await self.jsonIO._threadsafe_save_json(self.data)
 
     async def clear(self, identifier_data: IdentifierData):

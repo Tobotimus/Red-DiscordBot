@@ -1,5 +1,5 @@
 import datetime
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Tuple, Dict, Any, cast
 
 import discord
 
@@ -320,12 +320,12 @@ async def wipe_bank(guild: Optional[discord.Guild] = None) -> None:
 
     """
     if await is_global():
-        await _conf.clear_all_users()
+        await _conf.user.clear()
     else:
-        await _conf.clear_all_members(guild)
+        await _conf.member[guild.id].clear()
 
 
-async def get_leaderboard(positions: int = None, guild: discord.Guild = None) -> List[tuple]:
+async def get_leaderboard(positions: int = None, guild: discord.Guild = None) -> List[Tuple[int, Dict[str, Any]]]:
     """
     Gets the bank's leaderboard
 
@@ -349,7 +349,7 @@ async def get_leaderboard(positions: int = None, guild: discord.Guild = None) ->
 
     """
     if await is_global():
-        raw_accounts = await _conf.all_users()
+        raw_accounts = await _conf.user.all(int_primary_keys=True)
         if guild is not None:
             tmp = raw_accounts.copy()
             for acc in tmp:
@@ -361,9 +361,9 @@ async def get_leaderboard(positions: int = None, guild: discord.Guild = None) ->
         raw_accounts = await _conf.all_members(guild)
     sorted_acc = sorted(raw_accounts.items(), key=lambda x: x[1]["balance"], reverse=True)
     if positions is None:
-        return sorted_acc
+        return cast(List[Tuple[int, Dict[str, Any]]], sorted_acc)
     else:
-        return sorted_acc[:positions]
+        return cast(List[Tuple[int, Dict[str, Any]]], sorted_acc[:positions])
 
 
 async def get_leaderboard_position(
@@ -421,18 +421,18 @@ async def get_account(member: Union[discord.Member, discord.User]) -> Account:
 
     """
     if await is_global():
-        all_accounts = await _conf.all_users()
+        all_accounts = await _conf.user.all()
     else:
-        all_accounts = await _conf.all_members(member.guild)
+        all_accounts = await _conf.member[member.guild.id].all()
 
-    if member.id not in all_accounts:
+    try:
+        acc_data = all_accounts[str(member.id)]
+    except KeyError:
         acc_data = {"name": member.display_name, "created_at": _DEFAULT_MEMBER["created_at"]}
         try:
             acc_data["balance"] = await get_default_balance(member.guild)
         except AttributeError:
             acc_data["balance"] = await get_default_balance()
-    else:
-        acc_data = all_accounts[member.id]
 
     acc_data["created_at"] = _decode_time(acc_data["created_at"])
     return Account(**acc_data)
@@ -477,9 +477,9 @@ async def set_global(global_: bool) -> bool:
         return global_
 
     if await is_global():
-        await _conf.clear_all_users()
+        await _conf.user.clear()
     else:
-        await _conf.clear_all_members()
+        await _conf.member.clear()
 
     await _conf.is_global.set(global_)
     return global_

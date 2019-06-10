@@ -1,15 +1,18 @@
-import collections
-from copy import deepcopy
-from typing import Any, Dict, TYPE_CHECKING, Union
+import pickle
+from typing import Any, Dict, TYPE_CHECKING, Union, Type, Optional, Callable, Sequence, TypeVar
+
+import discord
 
 from .identifier_data import IdentifierData
-from .utils import str_key_dict
+from .utils import str_key_dict, ConfigCategory
 from .value import Value, ValueContextManager
 
 if TYPE_CHECKING:
     from .config import Config
 
-__all__ = ["Group"]
+__all__ = ["Group", "ModelGroup", "model_group"]
+
+_T = TypeVar("_T")
 
 
 class Group(Value):
@@ -18,45 +21,56 @@ class Group(Value):
 
     Inherits from `Value` which means that all of the attributes and methods
     available in `Value` are also available when working with a `Group` object.
-
-    Attributes
-    ----------
-    defaults : `dict`
-        All registered default values for this Group.
-    force_registration : `bool`
-        Same as `Config.force_registration`.
-    driver : `BaseDriver`
-        A reference to `Config.driver`.
-
     """
 
-    def __init__(
-        self,
-        identifier_data: IdentifierData,
-        defaults: dict,
-        driver,
-        config: "Config",
-        force_registration: bool = False,
-    ):
-        self._defaults = defaults
-        self.force_registration = force_registration
-        self.driver = driver
-
-        super().__init__(identifier_data, {}, self.driver, config)
+    def __init__(self, identifier_data: IdentifierData, config: "Config"):
+        super().__init__(identifier_data, config)
 
     @property
     def defaults(self):
-        return deepcopy(self._defaults)
+        ret = self.default
+        if ret is None:
+            return {}
+        else:
+            return pickle.loads(pickle.dumps(ret, -1))
 
-    async def _get(self, default: Dict[str, Any] = ...) -> Dict[str, Any]:
+    async def _get(self, default: Dict[str, Any] = ..., **kwargs) -> Dict[str, Any]:
         default = default if default is not ... else self.defaults
-        raw = await super()._get(default)
+        num_pkeys = len(self.identifier_data.primary_key)
+        if num_pkeys < self.identifier_data.primary_key_len:
+            passed_default = {}
+        else:
+            passed_default = default
+        raw = await super()._get(passed_default)
         if isinstance(raw, dict):
-            return self.nested_update(raw, default)
+            return self.__nested_update(
+                raw, default, num_pkeys, kwargs.get("int_primary_keys", False)
+            )
         else:
             return raw
 
-    # noinspection PyTypeChecker
+    def __getitem__(
+        self, item: Union[str, int, Sequence[Union[str, int]]]
+    ) -> Union["Group", Value]:
+        if len(self.identifier_data.primary_key) < self.identifier_data.primary_key_len:
+            item_adder = self.identifier_data.add_primary_key
+        else:
+            item_adder = self.identifier_data.add_identifier
+        if isinstance(item, (str, int)):
+            new_identifier_data = item_adder(str(item))
+        else:
+            new_identifier_data = item_adder(*map(str, item))
+
+        is_group = self.__is_group(new_identifier_data)
+        if is_group is True:
+            return Group(identifier_data=new_identifier_data, config=self._config)
+        elif is_group is False:
+            return Value(identifier_data=new_identifier_data, config=self._config)
+        elif self._config.force_registration:
+            raise AttributeError("'{}' is not a valid registered Group or value.".format(item))
+        else:
+            return Value(identifier_data=new_identifier_data, config=self._config)
+
     def __getattr__(self, item: str) -> Union["Group", Value]:
         """Get an attribute of this group.
 
@@ -81,33 +95,7 @@ class Group(Value):
             is set to :code:`True`.
 
         """
-        is_group = self.is_group(item)
-        is_value = not is_group and self.is_value(item)
-        new_identifiers = self.identifier_data.add_identifier(item)
-        if is_group:
-            return Group(
-                identifier_data=new_identifiers,
-                defaults=self._defaults[item],
-                driver=self.driver,
-                force_registration=self.force_registration,
-                config=self._config,
-            )
-        elif is_value:
-            return Value(
-                identifier_data=new_identifiers,
-                default_value=self._defaults[item],
-                driver=self.driver,
-                config=self._config,
-            )
-        elif self.force_registration:
-            raise AttributeError("'{}' is not a valid registered Group or value.".format(item))
-        else:
-            return Value(
-                identifier_data=new_identifiers,
-                default_value=None,
-                driver=self.driver,
-                config=self._config,
-            )
+        return self[item]
 
     async def clear_raw(self, *nested_path: Any):
         """
@@ -131,44 +119,31 @@ class Group(Value):
         """
         path = tuple(str(p) for p in nested_path)
         identifier_data = self.identifier_data.add_identifier(*path)
-        await self.driver.clear(identifier_data)
+        await self._config.driver.clear(identifier_data)
 
-    def is_group(self, item: Any) -> bool:
-        """A helper method for `__getattr__`. Most developers will have no need
-        to use this.
+    def __is_group(self, id_data: IdentifierData) -> Optional[bool]:
+        if len(id_data.primary_key) < id_data.primary_key_len:
+            return True
 
-        Parameters
-        ----------
-        item : Any
-            See `__getattr__`.
-
-        """
-        default = self._defaults.get(str(item))
-        return isinstance(default, dict)
-
-    def is_value(self, item: Any) -> bool:
-        """A helper method for `__getattr__`. Most developers will have no need
-        to use this.
-
-        Parameters
-        ----------
-        item : Any
-            See `__getattr__`.
-
-        """
         try:
-            default = self._defaults[str(item)]
+            inner = self._config.defaults[id_data.category]
+            for key in id_data.identifiers:
+                inner = inner[key]
         except KeyError:
-            return False
+            return
+        else:
+            return isinstance(inner, dict)
 
-        return not isinstance(default, dict)
-
+    @discord.utils.deprecated("square-bracket syntax")
     def get_attr(self, item: Union[int, str]):
         """Manually get an attribute of this Group.
 
         This is available to use as an alternative to using normal Python
         attribute access. It may be required if you find a need for dynamic
         attribute access.
+
+        .. deprecated:: 3.2
+            Use square-bracket syntax (`Group.__getitem__`) instead.
 
         Example
         -------
@@ -193,9 +168,7 @@ class Group(Value):
             The attribute which was requested.
 
         """
-        if isinstance(item, int):
-            item = str(item)
-        return self.__getattr__(item)
+        return self[item]
 
     async def get_raw(self, *nested_path: Any, default=...):
         """
@@ -250,17 +223,27 @@ class Group(Value):
 
         identifier_data = self.identifier_data.add_identifier(*path)
         try:
-            raw = await self.driver.get(identifier_data)
+            raw = await self._config.driver.get(identifier_data)
         except KeyError:
             if default is not ...:
                 return default
             raise
         else:
             if isinstance(default, dict):
-                return self.nested_update(raw, default)
+                return self.__nested_update(
+                    raw,
+                    default,
+                    len(identifier_data.primary_key) + len(identifier_data.identifiers),
+                )
             return raw
 
-    def all(self, *, acquire_lock: bool = True) -> ValueContextManager[Dict[str, Any]]:
+    def all(
+        self,
+        *,
+        acquire_lock: bool = True,
+        with_defaults: bool = True,
+        int_primary_keys: bool = False
+    ) -> ValueContextManager[Dict[Union[str, int], Any]]:
         """Get a dictionary representation of this group's data.
 
         The return value of this method can also be used as an asynchronous
@@ -279,30 +262,43 @@ class Group(Value):
 
         Returns
         -------
-        dict
+        Dict[str, Any]
             All of this Group's attributes, resolved as raw data values.
 
         """
-        return self(acquire_lock=acquire_lock)
+        if with_defaults is False:
+            default = {}
+        else:
+            default = ...
+        return ValueContextManager(
+            self,
+            self._get(default, int_primary_keys=int_primary_keys),
+            acquire_lock=acquire_lock,
+        )
 
-    def nested_update(
-        self, current: collections.Mapping, defaults: Dict[str, Any] = ...
+    def __nested_update(
+        self,
+        cur_data: Dict[str, Any],
+        defaults: Dict[str, Any],
+        cur_level: int,
+        int_primary_keys: bool = False,
     ) -> Dict[str, Any]:
-        """Robust updater for nested dictionaries
+        data_contains_pkeys = cur_level < self.identifier_data.primary_key_len
+        if data_contains_pkeys is True:
+            ret = {}
+        else:
+            ret = pickle.loads(pickle.dumps(defaults, -1))
 
-        If no defaults are passed, then the instance attribute 'defaults'
-        will be used.
-        """
-        if defaults is ...:
-            defaults = self.defaults
-
-        for key, value in current.items():
-            if isinstance(value, collections.Mapping):
-                result = self.nested_update(value, defaults.get(key, {}))
-                defaults[key] = result
+        for key, value in cur_data.items():
+            if data_contains_pkeys is True:
+                if int_primary_keys is True:
+                    key = int(key)
+                ret[key] = self.__nested_update(value, defaults, cur_level + 1, int_primary_keys)
+            elif isinstance(value, dict):
+                ret[key] = self.__nested_update(value, defaults.get(key, {}), cur_level)
             else:
-                defaults[key] = deepcopy(current[key])
-        return defaults
+                ret[key] = value
+        return ret
 
     async def set(self, value):
         if not isinstance(value, dict):
@@ -335,4 +331,58 @@ class Group(Value):
         identifier_data = self.identifier_data.add_identifier(*path)
         if isinstance(value, dict):
             value = str_key_dict(value)
-        await self.driver.set(identifier_data, value=value)
+        await self._config.driver.set(identifier_data, value=value)
+
+
+class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Group], Group):
+    def __init__(
+        self,
+        primary_key_getter: Callable[..., Sequence[str]],
+        identifier_data: IdentifierData,
+        config: "Config",
+    ) -> None:
+        super().__init__(identifier_data, config)
+        self.__primary_key_getter = primary_key_getter
+
+    def __call__(self, model: Union[_T, str, int, Sequence[Union[str, int]]], **kwargs) -> Group:
+        primary_key = self.__primary_key_getter(self._config, model, **kwargs)
+        new_identifier_data = self.identifier_data.add_primary_key(*primary_key)
+
+        return Group(identifier_data=new_identifier_data, config=self._config)
+
+
+class _ModelGroupDescriptor:
+    def __init__(
+        self,
+        primary_key_getter: Callable[..., Sequence[str]],
+        category: Union[str, ConfigCategory],
+    ) -> None:
+        self._primary_key_getter = primary_key_getter
+        self._category = str(category)
+
+    def __get__(
+        self, instance: Optional["Config"], owner: Type["Config"]
+    ) -> Union[ModelGroup, "_ModelGroupDescriptor"]:
+        if instance is None:
+            return self
+
+        return ModelGroup(
+            self._primary_key_getter,
+            identifier_data=IdentifierData(
+                instance.unique_identifier,
+                self._category,
+                (),
+                (),
+                *ConfigCategory.get_pkey_info(self._category, instance.custom_groups)
+            ),
+            config=instance,
+        )
+
+
+def model_group(
+    category: Union[str, ConfigCategory]
+) -> Callable[[staticmethod], _ModelGroupDescriptor]:
+    def decorator(method: Callable[..., Sequence[str]]) -> _ModelGroupDescriptor:
+        return _ModelGroupDescriptor(method, category)
+
+    return decorator

@@ -305,7 +305,7 @@ class Trivia(commands.Cog):
             )
             return
         guild = ctx.guild
-        data = await self.conf.all_members(guild)
+        data = await self.conf.member[guild.id].all()
         data = {guild.get_member(u): d for u, d in data.items()}
         data.pop(None, None)  # remove any members which aren't in the guild
         await self.send_leaderboard(ctx, data, key, top)
@@ -333,7 +333,7 @@ class Trivia(commands.Cog):
                 ).format(field_name=sort_by, prefix=ctx.prefix)
             )
             return
-        data = await self.conf.all_members()
+        data = await self.conf.member.all()
         collated_data = {}
         for guild_id, guild_data in data.items():
             guild = ctx.bot.get_guild(guild_id)

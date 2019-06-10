@@ -61,6 +61,19 @@ class IdentifierData:
     def __hash__(self) -> int:
         return hash((self.uuid, self.category, self.primary_key, self.identifiers))
 
+    def add_primary_key(self, *primary_key: str) -> "IdentifierData":
+        if not all(isinstance(i, str) for i in primary_key):
+            raise ValueError("Primary keys must be strings.")
+
+        return IdentifierData(
+            self.uuid,
+            self.category,
+            self.primary_key + primary_key,
+            self.identifiers,
+            self.primary_key_len,
+            is_custom=self.is_custom,
+        )
+
     def add_identifier(self, *identifier: str) -> "IdentifierData":
         if not all(isinstance(i, str) for i in identifier):
             raise ValueError("Identifiers must be strings.")

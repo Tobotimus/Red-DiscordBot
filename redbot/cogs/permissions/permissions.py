@@ -618,7 +618,7 @@ class Permissions(commands.Cog):
         """Maybe update rules set by config prior to permissions 1.0.0."""
         if await self.config.version():
             return
-        old_config = await self.config.all_guilds()
+        old_config = await self.config.guild.all(int_primary_keys=True)
         old_config[GLOBAL] = await self.config.all()
         new_cog_rules, new_cmd_rules = self._get_updated_schema(old_config)
         await self.config.custom(COG).set(new_cog_rules)

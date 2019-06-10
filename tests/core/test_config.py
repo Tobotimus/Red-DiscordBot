@@ -247,7 +247,7 @@ async def test_get_dynamic_attr(config):
 async def test_membergroup_allguilds(config, empty_member):
     await config.member(empty_member).foo.set(False)
 
-    all_servers = await config.all_members()
+    all_servers = await config.member.all(int_primary_keys=True)
     assert empty_member.guild.id in all_servers
 
 
@@ -255,7 +255,7 @@ async def test_membergroup_allguilds(config, empty_member):
 async def test_membergroup_allmembers(config, empty_member):
     await config.member(empty_member).foo.set(False)
 
-    all_members = await config.all_members(empty_member.guild)
+    all_members = await config.member[empty_member.guild.id].all(int_primary_keys=True)
     assert empty_member.id in all_members
 
 
@@ -303,12 +303,11 @@ async def test_member_clear_all(config, member_factory):
         await config.member(member).foo.set(True)
         server_ids.append(member.guild.id)
 
-    member = member_factory.get()
-    assert len(await config.all_members()) == len(server_ids)
+    assert len(await config.member.all()) == len(server_ids)
 
-    await config.clear_all_members()
+    await config.member.clear()
 
-    assert len(await config.all_members()) == 0
+    assert len(await config.member.all()) == 0
 
 
 @pytest.mark.asyncio
@@ -316,7 +315,7 @@ async def test_clear_all(config):
     await config.foo.set(True)
     assert await config.foo() is True
 
-    await config.clear_all()
+    await config.clear()
     with pytest.raises(KeyError):
         await config.get_raw("foo")
 
@@ -338,7 +337,7 @@ async def test_user_get_all_from_kind(config, user_factory):
         user = user_factory.get()
         await config.user(user).foo.set(True)
 
-    all_data = await config.all_users()
+    all_data = await config.user.all()
 
     assert len(all_data) == 5
 

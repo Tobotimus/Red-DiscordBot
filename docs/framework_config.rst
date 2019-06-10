@@ -159,21 +159,13 @@ Here is an example of the :code:`async with` syntax:
     * :py:meth:`Config.role` which takes :py:class:`discord.Role`.
     * :py:meth:`Config.channel` which takes :py:class:`discord.TextChannel`.
 
-If you need to wipe data from the config, you want to look at :py:meth:`Group.clear`, or :py:meth:`Config.clear_all`
-and similar methods, such as :py:meth:`Config.clear_all_guilds`.
+If you need to wipe data from the config, you want to look at :py:meth:`Group.clear`.
 
 Which one you should use depends on what you want to do.
 
 If you're looking to clear data for a single guild/member/channel/role/user,
 you want to use :py:meth:`Group.clear` as that will clear the data only for the
 specified thing.
-
-If using :py:meth:`Config.clear_all`, it will reset all data everywhere. 
-
-There are other methods provided to reset data from a particular scope. For
-example, :py:meth:`Config.clear_all_guilds` resets all guild data. For member
-data, you can clear on both a per-guild and guild-independent basis, see
-:py:meth:`Config.clear_all_members` for more info.
 
 **************
 Advanced Usage

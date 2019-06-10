@@ -1,15 +1,15 @@
 import asyncio
-from copy import deepcopy
-from typing import Any, Dict, MutableMapping, Optional, Tuple, TypeVar, Union
+import pickle
+from typing import Any, Dict, MutableMapping, Optional, Tuple, TypeVar, Union, Sequence
 import weakref
 
 import discord
 
 from .drivers import BaseDriver, get_driver
-from .group import Group
+from .group import Group, model_group, ModelGroup
 from .identifier_data import IdentifierData
 from .utils import ConfigCategory
-from .value import Value
+from .value import Value, ValueContextManager
 
 __all__ = ["Config", "get_latest_confs"]
 
@@ -54,6 +54,11 @@ class Config:
         attempting to access data.
 
     """
+    guild: ModelGroup[discord.Guild]
+    channel: ModelGroup[discord.abc.GuildChannel]
+    role: ModelGroup[discord.Role]
+    user: ModelGroup[discord.abc.User]
+    member: ModelGroup[discord.Member]
 
     def __new__(cls, cog_name, unique_identifier, *args, **kwargs):
         key = (cog_name, unique_identifier)
@@ -90,7 +95,7 @@ class Config:
 
     @property
     def defaults(self):
-        return deepcopy(self._defaults)
+        return pickle.loads(pickle.dumps(self._defaults, -1))
 
     @classmethod
     def get_conf(cls, cog_instance, identifier: int, force_registration=False, cog_name=None):
@@ -228,7 +233,7 @@ class Config:
         if category not in self._defaults:
             self._defaults[category] = {}
 
-        data = deepcopy(kwargs)
+        data = pickle.loads(pickle.dumps(kwargs, -1))
 
         for k, v in data.items():
             to_add = self._get_defaults_dict(k, v)
@@ -344,15 +349,10 @@ class Config:
             primary_key_len=pkey_len,
             is_custom=is_custom,
         )
-        return Group(
-            identifier_data=identifier_data,
-            defaults=self.defaults.get(category, {}),
-            driver=self.driver,
-            force_registration=self.force_registration,
-            config=self,
-        )
+        return Group(identifier_data=identifier_data, config=self)
 
-    def guild(self, guild: discord.Guild) -> Group:
+    @model_group(ConfigCategory.GUILD)
+    def guild(self, guild: Union[discord.Guild, int, str]) -> Sequence[str]:
         """Returns a `Group` for the given guild.
 
         Parameters
@@ -362,79 +362,110 @@ class Config:
 
         Returns
         -------
-        `Group <redbot.core.config.Group>`
+        ModelGroup
             The guild's Group object.
 
         """
-        return self._get_base_group(ConfigCategory.GUILD, str(guild.id))
+        try:
+            _id = guild.id
+        except AttributeError:
+            _id = guild
 
-    def channel(self, channel: discord.TextChannel) -> Group:
+        return (str(_id),)
+
+    @model_group(ConfigCategory.CHANNEL)
+    def channel(self, channel: Union[discord.abc.GuildChannel, int, str]) -> Sequence[str]:
         """Returns a `Group` for the given channel.
-
-        This does not discriminate between text and voice channels.
 
         Parameters
         ----------
-        channel : `discord.abc.GuildChannel`
-            A channel object.
+        channel : Union[discord.abc.GuildChannel, int, str]
+            A channel object or ID.
 
         Returns
         -------
-        `Group <redbot.core.config.Group>`
+        ModelGroup
             The channel's Group object.
 
         """
-        return self._get_base_group(ConfigCategory.CHANNEL, str(channel.id))
+        try:
+            # noinspection PyUnresolvedReferences
+            _id = channel.id
+        except AttributeError:
+            _id = channel
 
-    def role(self, role: discord.Role) -> Group:
+        return (str(_id),)
+
+    @model_group(ConfigCategory.ROLE)
+    def role(self, role: Union[discord.Role, int, str]) -> Sequence[str]:
         """Returns a `Group` for the given role.
 
         Parameters
         ----------
-        role : discord.Role
-            A role object.
+        role : Union[discord.Role, int, str]
+            A role object or ID.
 
         Returns
         -------
-        `Group <redbot.core.config.Group>`
+        ModelGroup
             The role's Group object.
 
         """
-        return self._get_base_group(ConfigCategory.ROLE, str(role.id))
+        try:
+            _id = role.id
+        except AttributeError:
+            _id = role
 
-    def user(self, user: discord.abc.User) -> Group:
+        return (str(_id),)
+
+    @model_group(ConfigCategory.USER)
+    def user(self, user: Union[discord.abc.User, int, str]) -> Sequence[str]:
         """Returns a `Group` for the given user.
 
         Parameters
         ----------
-        user : discord.User
-            A user object.
+        user : Union[discord.abc.User, int, str]
+            A user object or ID.
 
         Returns
         -------
-        `Group <redbot.core.config.Group>`
+        ModelGroup
             The user's Group object.
 
         """
-        return self._get_base_group(ConfigCategory.USER, str(user.id))
+        try:
+            _id = user.id
+        except AttributeError:
+            _id = user
 
-    def member(self, member: discord.Member) -> Group:
+        return (str(_id),)
+
+    @model_group(ConfigCategory.MEMBER)
+    def member(
+        self, member: Union[discord.Member, Tuple[Union[int, str], Union[int, str]]]
+    ) -> Sequence[str]:
         """Returns a `Group` for the given member.
 
         Parameters
         ----------
-        member : discord.Member
-            A member object.
+        member : Union[discord.Member, Sequence[Union[int, str]]]
+            A member object or sequence (guild_id, user_id).
 
         Returns
         -------
-        `Group <redbot.core.config.Group>`
+        ModelGroup
             The member's Group object.
 
         """
-        return self._get_base_group(ConfigCategory.MEMBER, str(member.guild.id), str(member.id))
+        try:
+            guild_id = member.guild.id
+            user_id = member.id
+        except AttributeError:
+            guild_id, user_id = member
 
-    def custom(self, group_identifier: str, *identifiers: str):
+        return str(guild_id), str(user_id)
+
+    def custom(self, group_identifier: str, *identifiers: Any) -> Group:
         """Returns a `Group` for the given custom group.
 
         Parameters
@@ -455,37 +486,12 @@ class Config:
             raise ValueError(f"Group identifier not initialized: {group_identifier}")
         return self._get_base_group(str(group_identifier), *map(str, identifiers))
 
-    async def _all_from_scope(
-        self, scope: Union[str, ConfigCategory]
-    ) -> Dict[int, Dict[Any, Any]]:
-        """Get a dict of all values from a particular scope of data.
-
-        :code:`scope` must be one of the constants attributed to
-        this class, i.e. :code:`GUILD`, :code:`MEMBER` et cetera.
-
-        IDs as keys in the returned dict are casted to `int` for convenience.
-
-        Default values are also mixed into the data if they have not yet been
-        overwritten.
-        """
-        scope = str(scope)
-        group = self._get_base_group(scope)
-        ret = {}
-
-        try:
-            dict_ = await self.driver.get(group.identifier_data)
-        except KeyError:
-            pass
-        else:
-            for k, v in dict_.items():
-                data = group.defaults
-                data.update(v)
-                ret[int(k)] = data
-
-        return ret
-
-    async def all_guilds(self) -> dict:
+    @discord.utils.deprecated("Config.guild.all()")
+    def all_guilds(self) -> ValueContextManager[Dict[str, Any]]:
         """Get all guild data as a dict.
+
+        .. deprecated:: 3.2
+            Use ``Config.guild.all()`` instead.
 
         Note
         ----
@@ -494,15 +500,19 @@ class Config:
 
         Returns
         -------
-        dict
+        ValueContextManager[Dict[str, Any]]
             A dictionary in the form {`int`: `dict`} mapping
             :code:`GUILD_ID -> data`.
 
         """
-        return await self._all_from_scope(ConfigCategory.GUILD)
+        return self.guild.all(acquire_lock=True, int_primary_keys=True)
 
-    async def all_channels(self) -> dict:
+    @discord.utils.deprecated("Config.channel.all()")
+    def all_channels(self) -> ValueContextManager[Dict[str, Any]]:
         """Get all channel data as a dict.
+
+        .. deprecated:: 3.2
+            Use ``Config.channel.all()`` instead.
 
         Note
         ----
@@ -511,15 +521,19 @@ class Config:
 
         Returns
         -------
-        dict
+        ValueContextManager[Dict[str, Any]]
             A dictionary in the form {`int`: `dict`} mapping
             :code:`CHANNEL_ID -> data`.
 
         """
-        return await self._all_from_scope(ConfigCategory.CHANNEL)
+        return self.channel.all(acquire_lock=True, int_primary_keys=True)
 
-    async def all_roles(self) -> dict:
+    @discord.utils.deprecated("Config.role.all()")
+    def all_roles(self) -> ValueContextManager[Dict[str, Any]]:
         """Get all role data as a dict.
+
+        .. deprecated:: 3.2
+            Use ``Config.role.all()`` instead.
 
         Note
         ----
@@ -528,15 +542,19 @@ class Config:
 
         Returns
         -------
-        dict
+        ValueContextManager[Dict[str, Any]]
             A dictionary in the form {`int`: `dict`} mapping
             :code:`ROLE_ID -> data`.
 
         """
-        return await self._all_from_scope(ConfigCategory.ROLE)
+        return self.role.all(acquire_lock=True, int_primary_keys=True)
 
-    async def all_users(self) -> dict:
+    @discord.utils.deprecated("Config.user.all()")
+    def all_users(self) -> ValueContextManager[Dict[str, Any]]:
         """Get all user data as a dict.
+
+        .. deprecated:: 3.2
+            Use ``Config.user.all()`` instead.
 
         Note
         ----
@@ -545,29 +563,24 @@ class Config:
 
         Returns
         -------
-        dict
+        ValueContextManager[Dict[str, Any]]
             A dictionary in the form {`int`: `dict`} mapping
             :code:`USER_ID -> data`.
 
         """
-        return await self._all_from_scope(ConfigCategory.USER)
+        return self.user.all(acquire_lock=True, int_primary_keys=True)
 
-    @staticmethod
-    def _all_members_from_guild(group: Group, guild_data: dict) -> dict:
-        ret = {}
-        for member_id, member_data in guild_data.items():
-            new_member_data = group.defaults
-            new_member_data.update(member_data)
-            ret[int(member_id)] = new_member_data
-        return ret
-
-    async def all_members(self, guild: discord.Guild = None) -> dict:
+    @discord.utils.deprecated("Config.member.all() or Config.member[guild.id].all()")
+    def all_members(self, guild: discord.Guild = None) -> ValueContextManager[Dict[str, Any]]:
         """Get data for all members.
 
         If :code:`guild` is specified, only the data for the members of that
         guild will be returned. As such, the dict will map
         :code:`MEMBER_ID -> data`. Otherwise, the dict maps
         :code:`GUILD_ID -> MEMBER_ID -> data`.
+
+        .. deprecated:: 3.2
+            Use ``Config.member.all()`` or ``Config.member[guild.id].all()`` instead.
 
         Note
         ----
@@ -582,55 +595,15 @@ class Config:
 
         Returns
         -------
-        dict
+        ValueContextManager[Dict[str, Any]]
             A dictionary of all specified member data.
 
         """
-        ret = {}
-        if guild is None:
-            group = self._get_base_group(ConfigCategory.MEMBER)
-            try:
-                dict_ = await self.driver.get(group.identifier_data)
-            except KeyError:
-                pass
-            else:
-                for guild_id, guild_data in dict_.items():
-                    ret[int(guild_id)] = self._all_members_from_guild(group, guild_data)
+        if guild is not None:
+            group = self.member[guild.id]
         else:
-            group = self._get_base_group(ConfigCategory.MEMBER, str(guild.id))
-            try:
-                guild_data = await self.driver.get(group.identifier_data)
-            except KeyError:
-                pass
-            else:
-                ret = self._all_members_from_guild(group, guild_data)
-        return ret
-
-    async def _clear_scope(self, *scopes: Union[str, ConfigCategory]):
-        """Clear all data in a particular scope.
-
-        The only situation where a second scope should be passed in is if
-        member data from a specific guild is being cleared.
-
-        If no scopes are passed, then all data is cleared from every scope.
-
-        Parameters
-        ----------
-        *scopes : str, optional
-            The scope of the data. Generally only one scope needs to be
-            provided, a second only necessary for clearing member data
-            of a specific guild.
-
-            **Leaving blank removes all data from this Config instance.**
-
-        """
-        if not scopes:
-            # noinspection PyTypeChecker
-            identifier_data = IdentifierData(self.unique_identifier, "", (), (), 0)
-            group = Group(identifier_data, defaults={}, driver=self.driver, config=self)
-        else:
-            group = self._get_base_group(*scopes)
-        await group.clear()
+            group = self.member
+        return group.all(acquire_lock=True, int_primary_keys=True)
 
     async def clear_all(self):
         """Clear all data from this Config instance.
@@ -642,47 +615,77 @@ class Config:
             This cannot be undone.
 
         """
-        await self._clear_scope()
+        identifier_data = IdentifierData(self.unique_identifier, "", (), (), 0)
+        await Group(identifier_data, config=self).clear()
 
+    @discord.utils.deprecated("Config.clear()")
     async def clear_all_globals(self):
         """Clear all global data.
 
         This resets all global data to its registered defaults.
-        """
-        await self._clear_scope(ConfigCategory.GLOBAL)
 
+        .. deprecated:: 3.2
+            Use ``Config.clear()`` instead.
+
+        """
+        await self.clear()
+
+    @discord.utils.deprecated("Config.guild.clear()")
     async def clear_all_guilds(self):
         """Clear all guild data.
 
         This resets all guild data to its registered defaults.
-        """
-        await self._clear_scope(ConfigCategory.GUILD)
 
+        .. deprecated:: 3.2
+            Use ``Config.guild.clear()`` instead.
+
+        """
+        await self.guild.clear()
+
+    @discord.utils.deprecated("Config.channel.clear()")
     async def clear_all_channels(self):
         """Clear all channel data.
 
         This resets all channel data to its registered defaults.
-        """
-        await self._clear_scope(ConfigCategory.CHANNEL)
 
+        .. deprecated:: 3.2
+            Use ``Config.channel.clear()`` instead.
+
+        """
+        await self.channel.clear()
+
+    @discord.utils.deprecated("Config.role.clear()")
     async def clear_all_roles(self):
         """Clear all role data.
 
         This resets all role data to its registered defaults.
-        """
-        await self._clear_scope(ConfigCategory.ROLE)
 
+        .. deprecated:: 3.2
+            Use ``Config.role.clear()`` instead.
+
+        """
+        await self.role.clear()
+
+    @discord.utils.deprecated("Config.user.clear()")
     async def clear_all_users(self):
         """Clear all user data.
 
         This resets all user data to its registered defaults.
-        """
-        await self._clear_scope(ConfigCategory.USER)
 
+        .. deprecated:: 3.2
+            Use ``Config.user.clear()`` instead.
+
+        """
+        await self.user.clear()
+
+    @discord.utils.deprecated("Config.member.clear() or Config.member[guild.id].clear()")
     async def clear_all_members(self, guild: discord.Guild = None):
         """Clear all member data.
 
         This resets all specified member data to its registered defaults.
+
+        .. deprecated:: 3.2
+            Use ``Config.member.clear()`` or ``Config.member[guild.id].clear()`` instead.
 
         Parameters
         ----------
@@ -692,14 +695,19 @@ class Config:
 
         """
         if guild is not None:
-            await self._clear_scope(ConfigCategory.MEMBER, str(guild.id))
-            return
-        await self._clear_scope(ConfigCategory.MEMBER)
+            group = self.member[guild.id]
+        else:
+            group = self.member
+        await group.clear()
 
+    @discord.utils.deprecated("Config.custom(category).clear()")
     async def clear_all_custom(self, category: str):
         """Clear all custom group data.
 
         This resets all custom group data to its registered defaults.
+
+        .. deprecated:: 3.2
+            Use ``Config.custom(category).clear()`` instead.
 
         Parameters
         ----------
@@ -708,46 +716,67 @@ class Config:
             `str` for you.
 
         """
-        await self._clear_scope(str(category))
+        await self.custom(category).clear()
 
+    @discord.utils.deprecated("Config.guild.get_lock()")
     def get_guilds_lock(self) -> asyncio.Lock:
         """Get a lock for all guild data.
 
+        .. deprecated:: 3.2
+            Use ``Config.guild.get_lock()`` instead.
+
         Returns
         -------
         asyncio.Lock
         """
-        return self.get_custom_lock(ConfigCategory.GUILD)
+        return self.guild.get_lock()
 
+    @discord.utils.deprecated("Config.channel.get_lock()")
     def get_channels_lock(self) -> asyncio.Lock:
         """Get a lock for all channel data.
 
+        .. deprecated:: 3.2
+            Use ``Config.channel.get_lock()`` instead.
+
         Returns
         -------
         asyncio.Lock
         """
-        return self.get_custom_lock(ConfigCategory.CHANNEL)
+        return self.channel.get_lock()
 
+    @discord.utils.deprecated("Config.role.get_lock()")
     def get_roles_lock(self) -> asyncio.Lock:
         """Get a lock for all role data.
 
+        .. deprecated:: 3.2
+            Use ``Config.role.get_lock()`` instead.
+
         Returns
         -------
         asyncio.Lock
         """
-        return self.get_custom_lock(ConfigCategory.ROLE)
+        return self.roles.get_lock()
 
+    @discord.utils.deprecated("Config.user.get_lock()")
     def get_users_lock(self) -> asyncio.Lock:
         """Get a lock for all user data.
 
+        .. deprecated:: 3.2
+            Use ``Config.user.get_lock()`` instead.
+
         Returns
         -------
         asyncio.Lock
         """
-        return self.get_custom_lock(ConfigCategory.USER)
+        return self.user.get_lock()
 
+    @discord.utils.deprecated("Config.member.get_lock() or Config.member[guild.id].get_lock()")
     def get_members_lock(self, guild: Optional[discord.Guild] = None) -> asyncio.Lock:
         """Get a lock for all member data.
+
+        .. deprecated:: 3.2
+            Use ``Config.member.get_lock()`` or
+            ``Config.member[guild.id].get_lock()`` instead.
 
         Parameters
         ----------
@@ -759,14 +788,18 @@ class Config:
         -------
         asyncio.Lock
         """
-        if guild is None:
-            return self.get_custom_lock(ConfigCategory.GUILD)
+        if guild is not None:
+            group = self.member[guild.id]
         else:
-            id_data = IdentifierData(self.uuid, ConfigCategory.MEMBER, (str(guild.id),), (), 2)
-            return self._lock_cache.setdefault(id_data, asyncio.Lock())
+            group = self.member
+        return group.get_lock()
 
-    def get_custom_lock(self, category: Union[str, ConfigCategory]) -> asyncio.Lock:
+    @discord.utils.deprecated("Config.custom(category).get_lock()")
+    def get_custom_lock(self, category: str) -> asyncio.Lock:
         """Get a lock for all data in a custom scope.
+
+        .. deprecated:: 3.2
+            Use ``Config.custom(category).get_lock()`` instead.
 
         Parameters
         ----------
@@ -777,15 +810,7 @@ class Config:
         -------
         asyncio.Lock
         """
-        category = str(category)
-        id_data = IdentifierData(
-            self.uuid,
-            category,
-            (),
-            (),
-            *ConfigCategory.get_pkey_info(category, self.custom_groups),
-        )
-        return self._lock_cache.setdefault(id_data, asyncio.Lock())
+        return self.custom(category).get_lock()
 
 
 def get_latest_confs() -> Tuple["Config"]:
