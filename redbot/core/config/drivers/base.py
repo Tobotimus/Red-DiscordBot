@@ -191,7 +191,7 @@ class BaseDriver(abc.ABC):
         """
         async for cog_name, cog_id in cls.aiter_cogs():
             driver = cls(cog_name, cog_id)
-            await driver.clear(IdentifierData(cog_id, "", (), (), 0))
+            await driver.clear(IdentifierData(cog_name, cog_id, "", (), (), 0))
 
     @staticmethod
     def _split_primary_key(
@@ -227,6 +227,7 @@ class BaseDriver(abc.ABC):
         ret = []
         for c in categories:
             ident_data = IdentifierData(
+                self.cog_name,
                 self.unique_cog_identifier,
                 c,
                 (),
@@ -247,6 +248,7 @@ class BaseDriver(abc.ABC):
             splitted_pkey = self._split_primary_key(category, custom_group_data, all_data)
             for pkey, data in splitted_pkey:
                 ident_data = IdentifierData(
+                    self.cog_name,
                     self.unique_cog_identifier,
                     category,
                     pkey,

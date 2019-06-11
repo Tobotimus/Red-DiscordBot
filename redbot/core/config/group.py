@@ -369,6 +369,7 @@ class _ModelGroupDescriptor:
         return ModelGroup(
             self._primary_key_getter,
             identifier_data=IdentifierData(
+                instance.cog_name,
                 instance.unique_identifier,
                 self._category,
                 (),

@@ -1,6 +1,6 @@
 from typing import Tuple, Union
 
-from .utils import ConfigCategory
+from redbot.core.config import ConfigCategory
 
 __all__ = ["IdentifierData"]
 
@@ -8,6 +8,7 @@ __all__ = ["IdentifierData"]
 class IdentifierData:
     def __init__(
         self,
+        cog_name: str,
         uuid: str,
         category: Union[str, ConfigCategory],
         primary_key: Tuple[str, ...],
@@ -15,12 +16,17 @@ class IdentifierData:
         primary_key_len: int,
         is_custom: bool = False,
     ):
+        self._cog_name = cog_name
         self._uuid = uuid
         self._category = str(category)
         self._primary_key = primary_key
         self._identifiers = identifiers
         self.primary_key_len = primary_key_len
         self._is_custom = is_custom
+
+    @property
+    def cog_name(self) -> str:
+        return self._cog_name
 
     @property
     def uuid(self) -> str:
@@ -44,7 +50,7 @@ class IdentifierData:
 
     def __repr__(self) -> str:
         return (
-            f"<IdentifierData uuid={self.uuid} category={self.category} "
+            f"<IdentifierData cog_name={self.cog_name} uuid={self.uuid} category={self.category} "
             f"primary_key={self.primary_key} identifiers={self.identifiers}>"
         )
 
@@ -52,20 +58,22 @@ class IdentifierData:
         if not isinstance(other, IdentifierData):
             return False
         return (
-            self.uuid == other.uuid
+            self.cog_name == other.cog_name
+            and self.uuid == other.uuid
             and self.category == other.category
             and self.primary_key == other.primary_key
             and self.identifiers == other.identifiers
         )
 
     def __hash__(self) -> int:
-        return hash((self.uuid, self.category, self.primary_key, self.identifiers))
+        return hash((self.cog_name, self.uuid, self.category, self.primary_key, self.identifiers))
 
     def add_primary_key(self, *primary_key: str) -> "IdentifierData":
         if not all(isinstance(i, str) for i in primary_key):
             raise ValueError("Primary keys must be strings.")
 
         return IdentifierData(
+            self.cog_name,
             self.uuid,
             self.category,
             self.primary_key + primary_key,
@@ -79,6 +87,7 @@ class IdentifierData:
             raise ValueError("Identifiers must be strings.")
 
         return IdentifierData(
+            self.cog_name,
             self.uuid,
             self.category,
             self.primary_key,
@@ -89,7 +98,8 @@ class IdentifierData:
 
     def to_tuple(self) -> Tuple[str, ...]:
         return tuple(
-            item
-            for item in (self.uuid, self.category, *self.primary_key, *self.identifiers)
-            if len(item) > 0
+            filter(
+                None,
+                (self.cog_name, self.uuid, self.category, *self.primary_key, *self.identifiers),
+            )
         )

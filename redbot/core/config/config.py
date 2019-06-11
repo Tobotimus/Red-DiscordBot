@@ -342,6 +342,7 @@ class Config:
         pkey_len, is_custom = ConfigCategory.get_pkey_info(category, self.custom_groups)
         category = str(category)
         identifier_data = IdentifierData(
+            cog_name=self.cog_name,
             uuid=self.unique_identifier,
             category=category,
             primary_key=primary_keys,
@@ -615,7 +616,7 @@ class Config:
             This cannot be undone.
 
         """
-        identifier_data = IdentifierData(self.unique_identifier, "", (), (), 0)
+        identifier_data = IdentifierData(self.cog_name, self.unique_identifier, "", (), (), 0)
         await Group(identifier_data, config=self).clear()
 
     @discord.utils.deprecated("Config.clear()")
