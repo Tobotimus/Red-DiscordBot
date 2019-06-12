@@ -1,7 +1,11 @@
+import asyncio
 import re
 from getpass import getpass
-from typing import Match, Pattern, Tuple, Optional, AsyncIterator, Union
+from typing import Match, Pattern, Tuple, Optional, AsyncIterator, Union, Iterable, List
 from urllib.parse import quote_plus
+
+from ..utils import JsonSerializable
+from ...errors import StoredTypeError
 
 try:
     import pymongo.errors
@@ -147,11 +151,11 @@ class MongoDriver(BaseDriver):
                     partial[pkeys[-1]] = doc
         return ret
 
-    async def get(self, identifier_data: IdentifierData):
+    async def get(self, identifier_data: IdentifierData) -> JsonSerializable:
         mongo_collection = self.get_collection(identifier_data.category)
 
         pkey_filter = self.generate_primary_key_filter(identifier_data)
-        if len(identifier_data.identifiers) > 0:
+        if identifier_data.identifiers:
             dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
             proj = {"_id": False, dot_identifiers: True}
 
@@ -181,7 +185,7 @@ class MongoDriver(BaseDriver):
             value = self._escape_dict_keys(value)
 
         mongo_collection = self.get_collection(identifier_data.category)
-        if len(dot_identifiers) > 0:
+        if dot_identifiers:
             update_stmt = {"$set": {dot_identifiers: value}}
         else:
             update_stmt = {"$set": value}
@@ -208,9 +212,9 @@ class MongoDriver(BaseDriver):
         uuid = self._escape_key(identifier_data.uuid)
         primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
         ret = {"_id.RED_uuid": uuid}
-        if len(identifier_data.identifiers) > 0:
+        if len(identifier_data.primary_key) < identifier_data.primary_key_len:
             ret["_id.RED_primary_key"] = primary_key
-        elif len(identifier_data.primary_key) > 0:
+        elif identifier_data.primary_key:
             for i, key in enumerate(primary_key):
                 keyname = f"_id.RED_primary_key.{i}"
                 ret[keyname] = key
@@ -245,9 +249,16 @@ class MongoDriver(BaseDriver):
             for result in results:
                 await db[result["name"]].delete_many(pkey_filter)
 
-    async def inc(self, identifier_data: IdentifierData, value: Union[int, float], default):
-        if len(identifier_data.identifiers) == 0:
-            raise ValueError("Cannot call incr on a group!")
+    async def inc(
+        self,
+        identifier_data: IdentifierData,
+        value: Union[int, float],
+        default: Union[int, float],
+        *,
+        lock: asyncio.Lock,
+    ):
+        if not identifier_data.identifiers:
+            raise StoredTypeError("Cannot call inc() on a group!")
 
         uuid = self._escape_key(identifier_data.uuid)
         primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
@@ -255,24 +266,32 @@ class MongoDriver(BaseDriver):
         mongo_collection = self.get_collection(identifier_data.category)
         mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
 
-        if default != 0:
-            exists = await mongo_collection.find_one(
-                mongo_filter, projection={"_id": False, dot_identifiers: True}
-            )
-            if not exists:
-                curr_value = default
-                await self.set(identifier_data, curr_value + value)
-                return curr_value + value
+        async with lock:
+            if default:
+                exists = await mongo_collection.find_one(
+                    mongo_filter, projection={"_id": False, dot_identifiers: True}
+                )
+                if not exists:
+                    curr_value = default
+                    await self.set(identifier_data, curr_value + value)
+                    return curr_value + value
 
-        # If default is 0 we can do an atomic inc
-        update_stmt = {"$inc": {dot_identifiers: value}}
-        result = await mongo_collection.find_one_and_update(
-            mongo_filter,
-            update=update_stmt,
-            upsert=True,
-            projection={dot_identifiers: True},
-            return_document=pymongo.ReturnDocument.AFTER,
-        )
+            # If default is 0, or value exists, we can use $inc
+            update_stmt = {"$inc": {dot_identifiers: value}}
+            try:
+                result = await mongo_collection.find_one_and_update(
+                    mongo_filter,
+                    update=update_stmt,
+                    upsert=True,
+                    projection={dot_identifiers: True},
+                    return_document=pymongo.ReturnDocument.AFTER,
+                )
+            except pymongo.errors.WriteError as exc:
+                if exc.args and exc.args[0].startswith("Cannot create field"):
+                    raise errors.CannotSetSubfield
+                else:
+                    # Unhandled driver exception, should expose.
+                    raise
 
         partial = result
         for ident in map(self._escape_key, identifier_data.identifiers):
@@ -280,14 +299,207 @@ class MongoDriver(BaseDriver):
 
         return partial
 
-    async def toggle(self, identifier_data: IdentifierData, default) -> bool:
-        try:
-            curr_val = await self.get(identifier_data)
-        except KeyError:
-            curr_val = default
+    async def extend(
+        self,
+        identifier_data: IdentifierData,
+        value: Iterable[JsonSerializable],
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+        max_length: Optional[int] = None,
+        extend_left: bool = False,
+    ) -> List[JsonSerializable]:
+        if not identifier_data.identifiers:
+            raise StoredTypeError("Cannot call extend() on a group!")
 
-        await self.set(identifier_data, not curr_val)
-        return not curr_val
+        value = list(value)
+
+        uuid = self._escape_key(identifier_data.uuid)
+        primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+        dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
+        mongo_collection = self.get_collection(identifier_data.category)
+        mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
+
+        async with lock:
+            if default:
+                exists = await mongo_collection.find_one(
+                    mongo_filter, projection={"_id": False, dot_identifiers: True}
+                )
+                if not exists:
+                    existing_value = default
+                    if extend_left is True:
+                        existing_value[:] = [*value, *existing_value]
+                    else:
+                        existing_value.extend(value)
+                    if max_length is not None:
+                        oversize_by = len(existing_value) - max_length
+                        if oversize_by > 0:
+                            if extend_left is False:
+                                existing_value[:] = existing_value[oversize_by:]
+                            else:
+                                existing_value[:] = existing_value[:max_length]
+                    await self.set(identifier_data, existing_value)
+                    return existing_value
+
+            # If default is empty or value exists, we can use $push
+            modifiers = {"$each": value}
+            if extend_left is True:
+                modifiers["$position"] = 0
+            if max_length is not None:
+                modifiers["$slice"] = max_length if extend_left is True else -max_length
+            update_stmt = {"$push": {dot_identifiers: modifiers}}
+            try:
+                result = await mongo_collection.find_one_and_update(
+                    mongo_filter,
+                    update=update_stmt,
+                    upsert=True,
+                    projection={dot_identifiers: True},
+                    return_document=pymongo.ReturnDocument.AFTER,
+                )
+            except pymongo.errors.WriteError as exc:
+                if exc.args and exc.args[0].startswith("Cannot create field"):
+                    raise errors.CannotSetSubfield
+                else:
+                    # Unhandled driver exception, should expose.
+                    raise
+
+        partial = result
+        for ident in map(self._escape_key, identifier_data.identifiers):
+            partial = partial[ident]
+
+        return partial
+
+    async def insert(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+        max_length: Optional[int] = None,
+    ) -> List[JsonSerializable]:
+        if not identifier_data.identifiers:
+            raise StoredTypeError("Cannot call insert() on a group!")
+
+        uuid = self._escape_key(identifier_data.uuid)
+        primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+        dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
+        mongo_collection = self.get_collection(identifier_data.category)
+        mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
+
+        async with lock:
+            if default:
+                exists = await mongo_collection.find_one(
+                    mongo_filter, projection={"_id": False, dot_identifiers: True}
+                )
+                if not exists:
+                    existing_value = default
+                    existing_value.insert(index, value)
+                    if max_length is not None:
+                        oversize_by = len(existing_value) - max_length
+                        if oversize_by > 0:
+                            existing_value[:] = existing_value[:max_length]
+                    await self.set(identifier_data, existing_value)
+                    return existing_value
+
+            # If default is empty or value exists, we can use $push
+            modifiers = {"$each": [value], "$position": index}
+            if max_length is not None:
+                modifiers["$slice"] = max_length
+            update_stmt = {"$push": {dot_identifiers: modifiers}}
+            try:
+                result = await mongo_collection.find_one_and_update(
+                    mongo_filter,
+                    update=update_stmt,
+                    upsert=True,
+                    projection={dot_identifiers: True},
+                    return_document=pymongo.ReturnDocument.AFTER,
+                )
+            except pymongo.errors.WriteError as exc:
+                if exc.args and exc.args[0].startswith("Cannot create field"):
+                    raise errors.CannotSetSubfield
+                else:
+                    # Unhandled driver exception, should expose.
+                    raise
+
+        partial = result
+        for ident in map(self._escape_key, identifier_data.identifiers):
+            partial = partial[ident]
+
+        return partial
+
+    async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
+        if not identifier_data.identifiers:
+            raise StoredTypeError("Cannot call at() on a group!")
+
+        return await self.get(identifier_data.add_identifier(str(index)))
+
+    async def set_at(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+    ) -> None:
+        if not identifier_data.identifiers:
+            raise StoredTypeError("Cannot call set_at() on a group!")
+
+        uuid = self._escape_key(identifier_data.uuid)
+        primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+        dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
+        mongo_collection = self.get_collection(identifier_data.category)
+        mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
+
+        async with lock:
+            exists = await mongo_collection.find_one(
+                mongo_filter, projection={"_id": False, dot_identifiers: True}
+            )
+            if not exists:
+                existing_value = default
+                existing_value[index] = value
+                await self.set(identifier_data, existing_value)
+            else:
+                update_stmt = {"$set": {".".join((dot_identifiers, str(index))): value}}
+                try:
+                    await mongo_collection.update_one(
+                        mongo_filter, update=update_stmt, upsert=True
+                    )
+                except pymongo.errors.WriteError as exc:
+                    if exc.args and exc.args[0].startswith("Cannot create field"):
+                        raise errors.CannotSetSubfield
+                    else:
+                        # Unhandled driver exception, should expose.
+                        raise
+
+    async def object_contains(self, identifier_data: IdentifierData, item: str) -> bool:
+        uuid = self._escape_key(identifier_data.uuid)
+        mongo_collection = self.get_collection(identifier_data.category)
+
+        if len(identifier_data.primary_key) < identifier_data.primary_key_len:
+            # This shit is fucked
+            identifier_data = identifier_data.add_primary_key(item)
+            mongo_filter = self.generate_primary_key_filter(identifier_data)
+        elif not identifier_data.identifiers:
+            # Top-level key of document
+            mongo_collection = self.get_collection(identifier_data.category)
+            primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+            mongo_filter = {
+                "_id": {"RED_uuid": uuid, "RED_primary_key": primary_key},
+                "$exists": item,
+            }
+        else:
+            # Embedded document
+            identifier_data = identifier_data.add_identifier(item)
+            dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
+            primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
+            mongo_filter = {
+                "_id": {"RED_uuid": uuid, "RED_primary_key": primary_key},
+                dot_identifiers: {"$exists": True},
+            }
+        return bool(await mongo_collection.find_one(mongo_filter, projection={"_id": True}))
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:

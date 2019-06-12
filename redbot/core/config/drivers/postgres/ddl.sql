@@ -62,7 +62,6 @@ CREATE OR REPLACE FUNCTION
    * Create the config schema for the given cog.
    */
   red_config.create_schema(new_cog_name text, new_cog_id text, OUT schemaname text)
-    RETURNS text
     LANGUAGE 'plpgsql'
   AS $$
   BEGIN
@@ -360,7 +359,7 @@ CREATE OR REPLACE FUNCTION
   BEGIN
     IF num_identifiers = 0 THEN
       -- Without identifiers, there's no chance we're actually incrementing a number
-      RAISE EXCEPTION 'Cannot increment document(s)'
+      RAISE EXCEPTION 'Can only increment number, not document'
       USING ERRCODE = 'wrong_object_type';
     END IF;
 
@@ -447,7 +446,7 @@ CREATE OR REPLACE FUNCTION
   BEGIN
     IF num_identifiers = 0 THEN
       -- Without identifiers, there's no chance we're actually toggling a boolean
-      RAISE EXCEPTION 'Cannot increment document(s)'
+      RAISE EXCEPTION 'Can only toggle boolean, not document'
       USING ERRCODE = 'wrong_object_type';
     END IF;
 
@@ -528,8 +527,8 @@ CREATE OR REPLACE FUNCTION
     idx integer;
   BEGIN
     IF num_identifiers = 0 THEN
-      -- Without identifiers, there's no chance we're actually appending to an array
-      RAISE EXCEPTION 'Cannot append to document(s)'
+      -- Without identifiers, there's no chance we're actually extending an array
+      RAISE EXCEPTION 'Can only extend array, not document'
       USING ERRCODE = 'wrong_object_type';
     END IF;
 
@@ -588,6 +587,303 @@ CREATE OR REPLACE FUNCTION
         whereclause)
       USING id_data.pkeys, new_document;
     END IF;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.insert(
+    id_data red_config.identifier_data,
+    array_index integer,
+    new_value jsonb,
+    default_value jsonb,
+    max_length integer DEFAULT NULL,
+    OUT result jsonb
+  )
+    LANGUAGE 'plpgsql'
+  AS $$
+  DECLARE
+    schemaname CONSTANT text := concat_ws('.', id_data.cog_name, id_data.cog_id);
+    num_identifiers CONSTANT integer := coalesce(array_length(id_data.identifiers, 1), 0);
+    pkey_type CONSTANT text := red_utils.get_pkey_type(id_data.is_custom);
+    whereclause CONSTANT text := red_utils.gen_whereclause(id_data.pkey_len, pkey_type);
+
+    new_document jsonb;
+    existing_document jsonb;
+    existing_value jsonb;
+    pkey_placeholders text;
+    idx integer;
+  BEGIN
+    IF num_identifiers = 0 THEN
+      -- Without identifiers, there's no chance we're actually inserting into an array
+      RAISE EXCEPTION 'Can only insert into array, not document'
+      USING ERRCODE = 'wrong_object_type';
+    END IF;
+
+    PERFORM red_config.maybe_create_table(id_data);
+
+    -- Look for the existing document
+    EXECUTE format(
+      'SELECT json_data FROM %I.%I WHERE %s',
+      schemaname,
+      id_data.category,
+      whereclause)
+    INTO existing_document USING id_data.pkeys;
+
+    IF existing_document IS NULL THEN
+      result := jsonb_insert(default_value, ARRAY[array_index::text], new_value);
+      new_document := red_utils.jsonb_set2('{}'::jsonb, result, id_data.identifiers);
+      pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
+
+      EXECUTE format(
+        'INSERT INTO %I.%I VALUES(%s, $2)',
+        schemaname,
+        id_data.category,
+        pkey_placeholders)
+      USING id_data.pkeys, new_document;
+
+    ELSE
+      existing_value := existing_document #> id_data.identifiers;
+
+      IF existing_value IS NULL THEN
+        existing_value := default_value;
+
+      ELSIF jsonb_typeof(existing_value) != 'array' THEN
+        RAISE EXCEPTION 'Cannot insert into non-array value %', existing_value
+        USING ERRCODE = 'wrong_object_type';
+      END IF;
+
+      result := jsonb_insert(existing_value, ARRAY[array_index::text], new_value);
+
+      IF max_length IS NOT NULL THEN
+        FOR idx IN SELECT generate_series(1, jsonb_array_length(result) - max_length) LOOP
+          result := result - -1;
+        END LOOP;
+      END IF;
+
+      new_document := red_utils.jsonb_set2(existing_document, result, id_data.identifiers);
+
+      EXECUTE format(
+        'UPDATE %I.%I SET json_data = $2 WHERE %s',
+        schemaname,
+        id_data.category,
+        whereclause)
+      USING id_data.pkeys, new_document;
+    END IF;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.index(
+    id_data red_config.identifier_data,
+    obj jsonb,
+    OUT result integer
+  )
+    LANGUAGE 'plpgsql'
+    STABLE
+    PARALLEL SAFE
+  AS $$
+  DECLARE
+    existing_value CONSTANT jsonb := red_config.get(id_data);
+
+  BEGIN
+    IF jsonb_typeof(existing_value) != 'array' THEN
+      RAISE EXCEPTION 'Cannot check index in non-array value %', existing_value
+      USING ERRCODE = 'wrong_object_type';
+    END IF;
+
+    SELECT t.idx
+    INTO result
+    FROM (
+      SELECT row_number() OVER () idx, value elem
+      FROM jsonb_array_elements(existing_value)) t
+    WHERE t.elem = obj;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.at(
+    id_data red_config.identifier_data,
+    array_index integer
+  )
+    RETURNS jsonb
+    LANGUAGE 'plpgsql'
+    STABLE
+    PARALLEL SAFE
+  AS $$
+  DECLARE
+    existing_value CONSTANT jsonb := red_config.get(id_data);
+
+  BEGIN
+    IF jsonb_typeof(existing_value) != 'array' THEN
+      RAISE EXCEPTION 'Cannot do array-access on non-array value %', existing_value
+      USING ERRCODE = 'wrong_object_type';
+    END IF;
+
+    RETURN existing_value -> array_index;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.set_at(
+    id_data red_config.identifier_data,
+    array_index integer,
+    new_value jsonb,
+    default_value jsonb,
+    OUT result jsonb
+  )
+    LANGUAGE 'plpgsql'
+  AS $$
+  DECLARE
+    schemaname CONSTANT text := concat_ws('.', id_data.cog_name, id_data.cog_id);
+    num_identifiers CONSTANT integer := coalesce(array_length(id_data.identifiers, 1), 0);
+    pkey_type CONSTANT text := red_utils.get_pkey_type(id_data.is_custom);
+    whereclause CONSTANT text := red_utils.gen_whereclause(id_data.pkey_len, pkey_type);
+
+    new_document jsonb;
+    existing_document jsonb;
+    existing_value jsonb;
+    pkey_placeholders text;
+  BEGIN
+    IF num_identifiers = 0 THEN
+      -- Without identifiers, there's no chance we're actually inserting into an array
+      RAISE EXCEPTION 'Can only set at index in array, not document'
+      USING ERRCODE = 'wrong_object_type';
+    END IF;
+
+    PERFORM red_config.maybe_create_table(id_data);
+
+    -- Look for the existing document
+    EXECUTE format(
+      'SELECT json_data FROM %I.%I WHERE %s',
+      schemaname,
+      id_data.category,
+      whereclause)
+    INTO existing_document USING id_data.pkeys;
+
+    IF existing_document IS NULL THEN
+      result := jsonb_set(default_value, ARRAY[array_index::text], new_value);
+      new_document := red_utils.jsonb_set2('{}'::jsonb, result, id_data.identifiers);
+      pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
+
+      EXECUTE format(
+        'INSERT INTO %I.%I VALUES(%s, $2)',
+        schemaname,
+        id_data.category,
+        pkey_placeholders)
+      USING id_data.pkeys, new_document;
+
+    ELSE
+      existing_value := existing_document #> id_data.identifiers;
+
+      IF existing_value IS NULL THEN
+        existing_value := default_value;
+
+      ELSIF jsonb_typeof(existing_value) != 'array' THEN
+        RAISE EXCEPTION 'Cannot set at index in non-array value %', existing_value
+        USING ERRCODE = 'wrong_object_type';
+      END IF;
+
+      result := jsonb_set(existing_value, ARRAY[array_index::text], new_value);
+      new_document := red_utils.jsonb_set2(existing_document, result, id_data.identifiers);
+
+      EXECUTE format(
+        'UPDATE %I.%I SET json_data = $2 WHERE %s',
+        schemaname,
+        id_data.category,
+        whereclause)
+      USING id_data.pkeys, new_document;
+    END IF;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.object_contains(
+    id_data red_config.identifier_data,
+    item text,
+    OUT result boolean
+  )
+    STABLE
+    PARALLEL SAFE
+    LANGUAGE 'plpgsql'
+  AS $$
+  DECLARE
+    schemaname CONSTANT text := concat_ws('.', id_data.cog_name, id_data.cog_id);
+    num_pkeys CONSTANT integer := coalesce(array_length(id_data.pkeys, 1), 0);
+    num_missing_pkeys CONSTANT integer :=  id_data.pkey_len - num_pkeys;
+    pkey_type CONSTANT text := red_utils.get_pkey_type(id_data.is_custom);
+
+    whereclause text;
+    existing_value jsonb;
+
+  BEGIN
+    IF num_missing_pkeys <= 0 THEN
+      -- No missing primary keys: checking within a document
+      whereclause := red_utils.gen_whereclause(num_pkeys, pkey_type);
+
+      EXECUTE format(
+        'SELECT json_data #> $2 FROM %I.%I WHERE %s',
+        schemaname,
+        id_data.category,
+        whereclause)
+      INTO existing_value
+      USING id_data.pkeys, id_data.identifiers;
+
+      IF existing_value is NULL THEN
+        result := NULL;
+
+      ELSIF jsonb_typeof(existing_value) != 'object' THEN
+        RAISE EXCEPTION 'Cannot do object_contains on non-object value %s', existing_value
+        USING ERRCODE = 'wrong_object_type';
+
+      ELSE
+        result := existing_value ? item;
+      END IF;
+
+    ELSE
+      -- Missing primary keys: Checking if a primary key exists
+      whereclause := red_utils.gen_whereclause(num_pkeys + 1, pkey_type);
+
+      EXECUTE format(
+        'SELECT EXISTS (SELECT 1 FROM %I.%I WHERE %s)',
+        schemaname,
+        id_data.category,
+        whereclause)
+      INTO result
+      USING array_append(id_data.pkeys, item);
+    END IF;
+  END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION
+  red_config.array_contains(
+    id_data red_config.identifier_data,
+    item jsonb,
+    OUT result boolean
+  )
+    STABLE
+    PARALLEL SAFE
+    LANGUAGE 'plpgsql'
+  AS $$
+  DECLARE
+    existing_value CONSTANT jsonb := red_config.get(id_data);
+
+  BEGIN
+    IF jsonb_typeof(existing_value) != 'array' THEN
+      RAISE EXCEPTION 'Cannot do array_contains on non-array value %', existing_value
+      USING ERRCODE = 'wrong_object_type';
+    END IF;
+
+    SELECT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(existing_value)
+      WHERE value = item
+    ) INTO result;
   END;
 $$;
 

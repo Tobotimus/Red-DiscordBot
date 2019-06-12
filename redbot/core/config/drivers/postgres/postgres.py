@@ -1,7 +1,7 @@
 import getpass
 import json
 from pathlib import Path
-from typing import Optional, Any, AsyncIterator, Tuple, Union, Callable, List
+from typing import Optional, Any, AsyncIterator, Tuple, Union, Callable, List, Sequence, Iterable
 
 try:
     import asyncpg
@@ -10,7 +10,7 @@ except ModuleNotFoundError:
 
 from .... import data_manager, errors
 from ..base import BaseDriver
-from redbot.core.config.utils import ConfigCategory
+from redbot.core.config.utils import ConfigCategory, JsonSerializable
 from redbot.core.config.identifier_data import IdentifierData
 from ..log import log
 
@@ -23,13 +23,13 @@ DROP_DDL_SCRIPT_PATH = _PKG_PATH / "drop_ddl.sql"
 
 def encode_identifier_data(
     id_data: IdentifierData
-) -> Tuple[str, str, str, List[str], List[str], int, bool]:
+) -> Tuple[str, str, str, Sequence[str], Sequence[str], int, bool]:
     return (
         id_data.cog_name,
         id_data.uuid,
         id_data.category,
-        ["0"] if id_data.category == ConfigCategory.GLOBAL else list(id_data.primary_key),
-        list(id_data.identifiers),
+        ["0"] if id_data.category == ConfigCategory.GLOBAL else id_data.primary_key,
+        id_data.identifiers,
         1 if id_data.category == ConfigCategory.GLOBAL else id_data.primary_key_len,
         id_data.is_custom,
     )
@@ -89,7 +89,7 @@ class PostgresDriver(BaseDriver):
             "database": database,
         }
 
-    async def get(self, identifier_data: IdentifierData):
+    async def get(self, identifier_data: IdentifierData) -> JsonSerializable:
         try:
             result = await self._execute(
                 "SELECT red_config.get($1)",
@@ -105,17 +105,18 @@ class PostgresDriver(BaseDriver):
             raise KeyError
         return json.loads(result)
 
-    async def set(self, identifier_data: IdentifierData, value=None):
+    async def set(self, identifier_data: IdentifierData, value: JsonSerializable = None) -> None:
+        encoded = encode_identifier_data(identifier_data)
         try:
             await self._execute(
                 "SELECT red_config.set($1, $2::jsonb)",
-                encode_identifier_data(identifier_data),
+                encoded,
                 json.dumps(value),
             )
         except asyncpg.ErrorInAssignmentError:
             raise errors.CannotSetSubfield
 
-    async def clear(self, identifier_data: IdentifierData):
+    async def clear(self, identifier_data: IdentifierData) -> None:
         try:
             await self._execute(
                 "SELECT red_config.clear($1)", encode_identifier_data(identifier_data)
@@ -124,11 +125,15 @@ class PostgresDriver(BaseDriver):
             pass
 
     async def inc(
-        self, identifier_data: IdentifierData, value: Union[int, float], default: Union[int, float]
+        self,
+        identifier_data: IdentifierData,
+        value: Union[int, float],
+        default: Union[int, float],
+        **kwargs,
     ) -> Union[int, float]:
         try:
             return await self._execute(
-                f"SELECT red_config.inc($1, $2, $3)",
+                f"SELECT red_config.inc($1, $2::jsonb, $3::jsonb)",
                 encode_identifier_data(identifier_data),
                 value,
                 default,
@@ -137,7 +142,7 @@ class PostgresDriver(BaseDriver):
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
 
-    async def toggle(self, identifier_data: IdentifierData, default: bool) -> bool:
+    async def toggle(self, identifier_data: IdentifierData, default: bool, **kwargs) -> bool:
         try:
             return await self._execute(
                 "SELECT red_config.inc($1, $2)",
@@ -147,6 +152,146 @@ class PostgresDriver(BaseDriver):
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
+
+    async def extend(
+        self,
+        identifier_data: IdentifierData,
+        value: Iterable[JsonSerializable],
+        default: List[JsonSerializable],
+        *,
+        max_length: Optional[int] = None,
+        extend_left: bool = False,
+        **kwargs,
+    ) -> List[JsonSerializable]:
+        try:
+            return json.loads(await self._execute(
+                "SELECT red_config.extend($1, $2, $3, $4, $5)",
+                encode_identifier_data(identifier_data),
+                value,
+                default,
+                max_length,
+                extend_left,
+                method=self._pool.fetchval,
+            ))
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+
+    async def insert(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        *,
+        max_length: Optional[int] = None,
+        **kwargs,
+    ) -> List[JsonSerializable]:
+        try:
+            return json.loads(await self._execute(
+                "SELECT red_config.insert($1, $2, $3::jsonb, $4::jsonb, $5)",
+                encode_identifier_data(identifier_data),
+                index,
+                json.dumps(value),
+                json.dumps(default),
+                max_length,
+                method=self._pool.fetchval,
+            ))
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+
+    async def index(self, identifier_data: IdentifierData, value: JsonSerializable) -> int:
+        try:
+            result = await self._execute(
+                "SELECT red_config.index($1, $2::jsonb)",
+                encode_identifier_data(identifier_data),
+                value,
+                method=self._pool.fetchval
+            )
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+        except asyncpg.UndefinedTableError:
+            raise KeyError from None
+        else:
+            if result is None:
+                raise KeyError
+            return result
+
+    async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
+        try:
+            result = await self._execute(
+                "SELECT red_config.at($1, $2)",
+                encode_identifier_data(identifier_data),
+                index,
+                method=self._pool.fetchval,
+            )
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+        except asyncpg.UndefinedTableError:
+            raise KeyError from None
+        else:
+            if result is None:
+                raise KeyError
+            return json.loads(result)
+
+    async def set_at(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        **kwargs,
+    ) -> None:
+        try:
+            await self._execute(
+                "SELECT red_config.set_at($1, $2, $3::jsonb, $4::jsonb)",
+                encode_identifier_data(identifier_data),
+                index,
+                json.dumps(value),
+                json.dumps(default),
+                method=self._pool.fetchval,
+            )
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+
+    async def object_contains(
+        self,
+        identifier_data: IdentifierData,
+        item: str,
+    ) -> bool:
+        try:
+            result = await self._execute(
+                "SELECT red_config.object_contains($1, $2)",
+                encode_identifier_data(identifier_data),
+                item,
+            )
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+        except asyncpg.UndefinedTableError:
+            raise KeyError from None
+        else:
+            if result is None:
+                raise KeyError
+            return result
+
+    async def array_contains(
+        self,
+        identifier_data: IdentifierData,
+        item: JsonSerializable,
+    ) -> bool:
+        try:
+            result = await self._execute(
+                "SELECT red_config.object_contains($1, $2)",
+                encode_identifier_data(identifier_data),
+                item,
+            )
+        except asyncpg.WrongObjectTypeError as exc:
+            raise errors.StoredTypeError(*exc.args)
+        except asyncpg.UndefinedTableError:
+            raise KeyError from None
+        else:
+            if result is None:
+                raise KeyError
+            return result
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:

@@ -1,8 +1,10 @@
 import abc
-from typing import Tuple, Dict, Any, Union, List, AsyncIterator, Type
+import asyncio
+from typing import Tuple, Dict, Any, Union, List, AsyncIterator, Type, Optional, Iterable
 
 from ..identifier_data import IdentifierData
-from ..utils import ConfigCategory
+from ..utils import ConfigCategory, JsonSerializable
+from ...errors import StoredTypeError
 
 __all__ = ["BaseDriver"]
 
@@ -97,9 +99,13 @@ class BaseDriver(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     async def inc(
-        self, identifier_data: IdentifierData, value: Union[int, float], default: Union[int, float]
+        self,
+        identifier_data: IdentifierData,
+        value: Union[int, float],
+        default: Union[int, float],
+        *,
+        lock: asyncio.Lock,
     ) -> Union[int, float]:
         """
         Increments the value specified by the given identifiers.
@@ -112,11 +118,23 @@ class BaseDriver(abc.ABC):
         identifier_data
         value
         default
+        lock
         """
-        raise NotImplementedError
+        async with lock:
+            try:
+                existing_value = await self.get(identifier_data)
+            except KeyError:
+                existing_value = default
+            else:
+                if not isinstance(existing_value, (int, float)):
+                    raise StoredTypeError(f"Cannot increment non-numeric value {existing_value}")
+            new_value = existing_value + value
+            await self.set(identifier_data, new_value)
+        return new_value
 
-    @abc.abstractmethod
-    async def toggle(self, identifier_data: IdentifierData, default: bool) -> bool:
+    async def toggle(
+        self, identifier_data: IdentifierData, default: bool, *, lock: asyncio.Lock
+    ) -> bool:
         """
         Toggles the value specified by the given identifiers.
 
@@ -127,8 +145,114 @@ class BaseDriver(abc.ABC):
         ----------
         identifier_data
         default
+        lock
         """
-        raise NotImplementedError
+        async with lock:
+            try:
+                existing_value = await self.get(identifier_data)
+            except KeyError:
+                existing_value = default
+            else:
+                if not isinstance(existing_value, bool):
+                    raise StoredTypeError(f"Cannot toggle non-boolean value {existing_value}")
+            new_value = not existing_value
+            await self.set(identifier_data, new_value)
+        return new_value
+
+    async def extend(
+        self,
+        identifier_data: IdentifierData,
+        value: Iterable[JsonSerializable],
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+        max_length: Optional[int] = None,
+        extend_left: bool = False,
+    ) -> List[JsonSerializable]:
+        async with lock:
+            try:
+                existing_value = await self.get(identifier_data)
+            except KeyError:
+                existing_value = default
+            if extend_left is True:
+                existing_value[:] = [*value, *existing_value]
+            else:
+                existing_value.extend(value)
+            if max_length is not None:
+                oversize_by = len(existing_value) - max_length
+                if oversize_by > 0:
+                    if extend_left is False:
+                        existing_value[:] = existing_value[oversize_by:]
+                    else:
+                        existing_value[:] = existing_value[:max_length]
+            await self.set(identifier_data, existing_value)
+        return existing_value
+
+    async def insert(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+        max_length: Optional[int] = None,
+    ) -> List[JsonSerializable]:
+        async with lock:
+            try:
+                existing_value = await self.get(identifier_data)
+            except KeyError:
+                existing_value = default
+            existing_value.insert(index, value)
+            if max_length is not None and len(existing_value) > max_length:
+                del existing_value[-1]
+            await self.set(identifier_data, existing_value)
+        return existing_value
+
+    async def index(self, identifier_data: IdentifierData, value: JsonSerializable) -> int:
+        return (await self.get(identifier_data)).index(value)
+
+    async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
+        return (await self.get(identifier_data))[index]
+
+    async def set_at(
+        self,
+        identifier_data: IdentifierData,
+        index: int,
+        value: JsonSerializable,
+        default: List[JsonSerializable],
+        *,
+        lock: asyncio.Lock,
+    ) -> None:
+        async with lock:
+            try:
+                existing_value = await self.get(identifier_data)
+            except KeyError:
+                existing_value = default
+            existing_value[index] = value
+            await self.set(identifier_data, existing_value)
+
+    async def object_contains(
+        self,
+        identifier_data: IdentifierData,
+        item: str,
+    ) -> bool:
+        value = self.get(identifier_data)
+        if not isinstance(value, dict):
+            raise StoredTypeError(f"Cannot call object_contains on non-object value {value}")
+
+        return item in value
+
+    async def array_contains(
+        self,
+        identifier_data: IdentifierData,
+        item: JsonSerializable,
+    ) -> bool:
+        value = self.get(identifier_data)
+        if not isinstance(value, list):
+            raise StoredTypeError(f"Cannot call array_contains on non-array value {value}")
+
+        return item in value
 
     @classmethod
     @abc.abstractmethod

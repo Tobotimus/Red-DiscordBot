@@ -392,7 +392,7 @@ async def test_value_ctxmgr_saves(config):
 async def test_value_ctxmgr_immutable(config):
     config.register_global(foo=True)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(AttributeError):
         async with config.foo() as foo:
             foo = False
 
@@ -556,3 +556,10 @@ async def test_config_ctxmgr_atomicity(config):
     await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
 
     assert len(await config.foo()) == 15
+
+
+@pytest.mark.asyncio
+async def test_config_inc(config):
+    config.register_global(foo=0)
+
+

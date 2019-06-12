@@ -1,14 +1,26 @@
 import asyncio
+import functools
 import pickle
-from typing import Any, Awaitable, AsyncContextManager, Optional, TYPE_CHECKING, TypeVar, Union
+from typing import (
+    Awaitable,
+    AsyncContextManager,
+    Optional,
+    TYPE_CHECKING,
+    TypeVar,
+    Union,
+    Any,
+    Dict,
+    List,
+    Callable,
+)
 
 from .identifier_data import IdentifierData
-from .utils import str_key_dict
+from .utils import str_key_dict, JsonSerializable
 
 if TYPE_CHECKING:
     from .config import Config
 
-__all__ = ["ValueContextManager", "Value"]
+__all__ = ["ValueContextManager", "Value", "MutableValue"]
 
 _T = TypeVar("_T")
 
@@ -29,38 +41,44 @@ class ValueContextManager(Awaitable[_T], AsyncContextManager[_T]):
     to ``__init__`` is set to ``True``.
     """
 
-    def __init__(self, value_obj: "Value", coro: Awaitable[Any], *, acquire_lock: bool):
-        self.value_obj = value_obj
-        self.coro = coro
-        self.raw_value = None
+    def __init__(
+        self,
+        value_obj: "Value",
+        getter: Callable[[], Awaitable[JsonSerializable]],
+        *,
+        acquire_lock: bool
+    ):
+        self.__value_obj = value_obj
+        self.__getter = getter
+        self.__raw_value = None
         self.__original_value = None
         self.__acquire_lock = acquire_lock
-        self.__lock = self.value_obj.get_lock()
+        self.__lock = self.__value_obj.get_lock()
 
     def __await__(self):
-        return self.coro.__await__()
+        return self.__getter().__await__()
 
     async def __aenter__(self):
         if self.__acquire_lock is True:
             await self.__lock.acquire()
-        self.raw_value = await self
-        if not isinstance(self.raw_value, (list, dict)):
+        self.__raw_value = await self.__getter()
+        if not isinstance(self.__raw_value, (list, dict)):
             raise TypeError(
                 "Type of retrieved value must be mutable (i.e. "
                 "list or dict) in order to use a config value as "
                 "a context manager."
             )
-        self.__original_value = pickle.loads(pickle.dumps(self.raw_value, -1))
-        return self.raw_value
+        self.__original_value = pickle.loads(pickle.dumps(self.__raw_value, -1))
+        return self.__raw_value
 
     async def __aexit__(self, exc_type, exc, tb):
         try:
-            if isinstance(self.raw_value, dict):
-                raw_value = str_key_dict(self.raw_value)
+            if isinstance(self.__raw_value, dict):
+                raw_value = str_key_dict(self.__raw_value)
             else:
-                raw_value = self.raw_value
+                raw_value = self.__raw_value
             if raw_value != self.__original_value:
-                await self.value_obj.set(self.raw_value)
+                await self.__value_obj.set(self.__raw_value)
         finally:
             if self.__acquire_lock is True:
                 self.__lock.release()
@@ -129,14 +147,14 @@ class Value:
         # noinspection PyProtectedMember
         return self._config._lock_cache.setdefault(self.identifier_data, asyncio.Lock())
 
-    async def _get(self, default: Any = ..., **kwargs):
+    async def _get(self, default: JsonSerializable = ..., **kwargs):
         try:
             ret = await self._config.driver.get(self.identifier_data)
         except KeyError:
             return default if default is not ... else self.default
         return ret
 
-    def __call__(self, default=..., *, acquire_lock: bool = True) -> ValueContextManager[Any]:
+    async def __call__(self, default=..., **kwargs: Any) -> Awaitable[JsonSerializable]:
         """Get the literal value of this data element.
 
         Each `Value` object is created by the `Group.__getattr__` method. The
@@ -183,13 +201,13 @@ class Value:
 
         Returns
         -------
-        `awaitable` mixed with `asynchronous context manager`
+        JsonSerializable
             A coroutine object mixed in with an async context manager. When
             awaited, this returns the raw data value. When used in :code:`async
             with` syntax, on gets the value on entrance, and sets it on exit.
 
         """
-        return ValueContextManager(self, self._get(default), acquire_lock=acquire_lock)
+        return await self._get(default)
 
     async def set(self, value):
         """Set the value of the data elements pointed to by `identifiers`.
@@ -247,7 +265,9 @@ class Value:
         if not isinstance(default, (int, float)):
             raise ValueError("You must register or provide a numeric default to use this method.")
 
-        return await self._config.driver.inc(self.identifier_data, value, default=default)
+        return await self._config.driver.inc(
+            self.identifier_data, value, default=default, lock=self.get_lock()
+        )
 
     async def toggle(self, default: Optional[bool] = None) -> bool:
         """Toggles a Boolean value between True and False.
@@ -275,10 +295,79 @@ class Value:
         if not isinstance(default, bool):
             raise ValueError("You must register or provide a boolean default to use this method.")
 
-        return await self._config.driver.toggle(self.identifier_data, default=default)
+        return await self._config.driver.toggle(
+            self.identifier_data, default=default, lock=self.get_lock()
+        )
 
     async def clear(self):
         """
         Clears the value from record for the data element pointed to by `identifiers`.
         """
         await self._config.driver.clear(self.identifier_data)
+
+
+class MutableValue(Value):
+    @property
+    def default(self) -> Union[List[JsonSerializable], Dict[str, JsonSerializable]]:
+        return pickle.loads(pickle.dumps(super().default))
+
+    def __call__(
+        self, default=..., **kwargs
+    ) -> ValueContextManager[Union[List[JsonSerializable], Dict[str, JsonSerializable]]]:
+        """Get the literal value of this data element.
+
+        Each `Value` object is created by the `Group.__getattr__` method. The
+        "real" data of the `Value` object is accessed by this method. It is a
+        replacement for a :code:`get()` method.
+
+        The return value of this method can also be used as an asynchronous
+        context manager, i.e. with :code:`async with` syntax. This can only be
+        used on values which are mutable (namely lists and dicts), and will
+        set the value with its changes on exit of the context manager. It will
+        also acquire this value's lock to protect the critical region inside
+        this context manager's body, unless the ``acquire_lock`` keyword
+        argument is set to ``False``.
+
+        Example
+        -------
+        ::
+
+            foo = await conf.guild(some_guild).foo()
+
+            # Is equivalent to this
+
+            group_obj = conf.guild(some_guild)
+            value_obj = conf.foo
+            foo = await value_obj()
+
+        .. important::
+
+            This is now, for all intents and purposes, a coroutine.
+
+        Parameters
+        ----------
+        default : `object`, optional
+            This argument acts as an override for the registered default
+            provided by `default`. This argument is ignored if its
+            value is :code:`...`.
+
+        Other Parameters
+        ----------------
+        acquire_lock : bool
+            Set to ``False`` to disable the acquisition of the value's
+            lock over the context manager body. Defaults to ``True``.
+            Has no effect when not used as a context manager.
+
+        Returns
+        -------
+        ValueContextManager[Union[List[JsonSerializable], Dict[str, JsonSerializable]]]
+            A coroutine object mixed in with an async context manager. When
+            awaited, this returns the raw data value. When used in :code:`async
+            with` syntax, on gets the value on entrance, and sets it on exit.
+
+        """
+        return ValueContextManager(
+            self,
+            functools.partial(self._get, default),
+            acquire_lock=kwargs.pop("acquire_lock", True),
+        )

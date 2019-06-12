@@ -1,6 +1,6 @@
 from typing import Tuple, Union
 
-from redbot.core.config import ConfigCategory
+from .utils import ConfigCategory
 
 __all__ = ["IdentifierData"]
 

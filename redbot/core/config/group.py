@@ -1,11 +1,24 @@
+import functools
 import pickle
-from typing import Any, Dict, TYPE_CHECKING, Union, Type, Optional, Callable, Sequence, TypeVar
+from collections import defaultdict
+from typing import (
+    Dict,
+    TYPE_CHECKING,
+    Union,
+    Type,
+    Optional,
+    Callable,
+    Sequence,
+    TypeVar,
+    Iterable,
+)
 
 import discord
 
+from .array import Array
 from .identifier_data import IdentifierData
-from .utils import str_key_dict, ConfigCategory
-from .value import Value, ValueContextManager
+from .utils import str_key_dict, ConfigCategory, JsonSerializable
+from .value import Value, ValueContextManager, MutableValue
 
 if TYPE_CHECKING:
     from .config import Config
@@ -15,7 +28,7 @@ __all__ = ["Group", "ModelGroup", "model_group"]
 _T = TypeVar("_T")
 
 
-class Group(Value):
+class Group(MutableValue):
     """
     Represents a group of data, composed of more `Group` or `Value` objects.
 
@@ -23,18 +36,17 @@ class Group(Value):
     available in `Value` are also available when working with a `Group` object.
     """
 
-    def __init__(self, identifier_data: IdentifierData, config: "Config"):
-        super().__init__(identifier_data, config)
-
     @property
     def defaults(self):
-        ret = self.default
-        if ret is None:
+        default = self.default
+        if default is None:
             return {}
         else:
-            return pickle.loads(pickle.dumps(ret, -1))
+            return default
 
-    async def _get(self, default: Dict[str, Any] = ..., **kwargs) -> Dict[str, Any]:
+    async def _get(
+        self, default: Dict[str, JsonSerializable] = ..., **kwargs
+    ) -> Dict[str, JsonSerializable]:
         default = default if default is not ... else self.defaults
         num_pkeys = len(self.identifier_data.primary_key)
         if num_pkeys < self.identifier_data.primary_key_len:
@@ -50,7 +62,7 @@ class Group(Value):
             return raw
 
     def __getitem__(
-        self, item: Union[str, int, Sequence[Union[str, int]]]
+        self, item: Union[str, int, Iterable[Union[str, int]]]
     ) -> Union["Group", Value]:
         if len(self.identifier_data.primary_key) < self.identifier_data.primary_key_len:
             item_adder = self.identifier_data.add_primary_key
@@ -61,15 +73,12 @@ class Group(Value):
         else:
             new_identifier_data = item_adder(*map(str, item))
 
-        is_group = self.__is_group(new_identifier_data)
-        if is_group is True:
-            return Group(identifier_data=new_identifier_data, config=self._config)
-        elif is_group is False:
-            return Value(identifier_data=new_identifier_data, config=self._config)
-        elif self._config.force_registration:
+        default_type = self.__get_default_type(new_identifier_data)
+        if default_type is None and self._config.force_registration:
             raise AttributeError("'{}' is not a valid registered Group or value.".format(item))
         else:
-            return Value(identifier_data=new_identifier_data, config=self._config)
+            value_cls = _VALUE_CLASS_MAPPING[default_type]
+            return value_cls(new_identifier_data, self._config)
 
     def __getattr__(self, item: str) -> Union["Group", Value]:
         """Get an attribute of this group.
@@ -97,7 +106,7 @@ class Group(Value):
         """
         return self[item]
 
-    async def clear_raw(self, *nested_path: Any):
+    async def clear_raw(self, *nested_path: JsonSerializable):
         """
         Allows a developer to clear data as if it was stored in a standard
         Python dictionary.
@@ -113,7 +122,7 @@ class Group(Value):
 
         Parameters
         ----------
-        nested_path : Any
+        nested_path : JsonSerializable
             Multiple arguments that mirror the arguments passed in for nested
             dict access. These are casted to `str` for you.
         """
@@ -121,9 +130,9 @@ class Group(Value):
         identifier_data = self.identifier_data.add_identifier(*path)
         await self._config.driver.clear(identifier_data)
 
-    def __is_group(self, id_data: IdentifierData) -> Optional[bool]:
+    def __get_default_type(self, id_data: IdentifierData) -> Optional[Type[JsonSerializable]]:
         if len(id_data.primary_key) < id_data.primary_key_len:
-            return True
+            return dict
 
         try:
             inner = self._config.defaults[id_data.category]
@@ -132,7 +141,7 @@ class Group(Value):
         except KeyError:
             return
         else:
-            return isinstance(inner, dict)
+            return type(inner)
 
     @discord.utils.deprecated("square-bracket syntax")
     def get_attr(self, item: Union[int, str]):
@@ -170,7 +179,7 @@ class Group(Value):
         """
         return self[item]
 
-    async def get_raw(self, *nested_path: Any, default=...):
+    async def get_raw(self, *nested_path: JsonSerializable, default=...):
         """
         Allows a developer to access data as if it was stored in a standard
         Python dictionary.
@@ -200,7 +209,7 @@ class Group(Value):
 
         Returns
         -------
-        Any
+        JsonSerializable
             The value of the path requested.
 
         Raises
@@ -243,7 +252,7 @@ class Group(Value):
         acquire_lock: bool = True,
         with_defaults: bool = True,
         int_primary_keys: bool = False
-    ) -> ValueContextManager[Dict[Union[str, int], Any]]:
+    ) -> ValueContextManager[Dict[Union[str, int], JsonSerializable]]:
         """Get a dictionary representation of this group's data.
 
         The return value of this method can also be used as an asynchronous
@@ -262,7 +271,7 @@ class Group(Value):
 
         Returns
         -------
-        Dict[str, Any]
+        Dict[str, JsonSerializable]
             All of this Group's attributes, resolved as raw data values.
 
         """
@@ -272,17 +281,17 @@ class Group(Value):
             default = ...
         return ValueContextManager(
             self,
-            self._get(default, int_primary_keys=int_primary_keys),
+            functools.partial(self._get, default, int_primary_keys=int_primary_keys),
             acquire_lock=acquire_lock,
         )
 
     def __nested_update(
         self,
-        cur_data: Dict[str, Any],
-        defaults: Dict[str, Any],
+        cur_data: Dict[str, JsonSerializable],
+        defaults: Dict[str, JsonSerializable],
         cur_level: int,
         int_primary_keys: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, JsonSerializable]:
         data_contains_pkeys = cur_level < self.identifier_data.primary_key_len
         if data_contains_pkeys is True:
             ret = {}
@@ -305,7 +314,7 @@ class Group(Value):
             raise ValueError("You may only set the value of a group to be a dict.")
         await super().set(value)
 
-    async def set_raw(self, *nested_path: Any, value):
+    async def set_raw(self, *nested_path: JsonSerializable, value):
         """
         Allows a developer to set data as if it was stored in a standard
         Python dictionary.
@@ -321,7 +330,7 @@ class Group(Value):
 
         Parameters
         ----------
-        nested_path : Any
+        nested_path : JsonSerializable
             Multiple arguments that mirror the arguments passed in for nested
             `dict` access. These are casted to `str` for you.
         value
@@ -332,6 +341,12 @@ class Group(Value):
         if isinstance(value, dict):
             value = str_key_dict(value)
         await self._config.driver.set(identifier_data, value=value)
+
+    async def contains(self, item: Union[str, int]) -> bool:
+        return await self._config.driver.object_contains(self.identifier_data, str(item))
+
+
+_VALUE_CLASS_MAPPING = defaultdict(lambda: Value, {dict: Group, list: Array})
 
 
 class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Group], Group):

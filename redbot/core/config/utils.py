@@ -1,15 +1,19 @@
 import enum
-from typing import Any, Dict, TYPE_CHECKING, Tuple, Type, TypeVar, Union
+from typing import Any, Dict, TYPE_CHECKING, Tuple, Type, TypeVar, Union, List
 
 if TYPE_CHECKING:
     from .drivers import BaseDriver
 
 _T = TypeVar("_T")
 
-__all__ = ["ConfigCategory", "migrate", "str_key_dict"]
+__all__ = ["ConfigCategory", "migrate", "str_key_dict", "JsonSerializable"]
+
+JsonSerializable = Union[
+    None, int, float, str, List["JsonSerializable"], Dict[str, "JsonSerializable"]
+]
 
 
-class ConfigCategory(enum.Enum):
+class ConfigCategory(str, enum.Enum):
     GLOBAL = "GLOBAL"
     GUILD = "GUILD"
     CHANNEL = "TEXTCHANNEL"
