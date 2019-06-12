@@ -221,7 +221,9 @@ async def mongov1_to_json() -> Dict[str, Any]:
                 continue
             driver = drivers.JsonDriver(collection_name, cog_id)
             for category, value in document.items():
-                ident_data = IdentifierData(collection_name, str(cog_id), category, tuple(), tuple(), 0)
+                ident_data = IdentifierData(
+                    collection_name, str(cog_id), category, tuple(), tuple(), 0
+                )
                 await driver.set(ident_data, value=value)
 
     conversion_log.info("Cog conversion complete.")

@@ -8,13 +8,8 @@ __all__ = ["Array"]
 
 
 class Array(MutableValue):
-
     async def append(
-        self,
-        obj: JsonSerializable,
-        *,
-        max_length: Optional[int] = None,
-        append_left: bool = False,
+        self, obj: JsonSerializable, *, max_length: Optional[int] = None, append_left: bool = False
     ) -> List[JsonSerializable]:
         return await self.extend((obj,), max_length=max_length, extend_left=append_left)
 
@@ -28,22 +23,27 @@ class Array(MutableValue):
         return await self._config.driver.extend(
             self.identifier_data,
             iterable,
-            default_value=self.default,
+            default=self.default,
             max_length=max_length,
             extend_left=extend_left,
-            lock=self.get_lock()
+            lock=self.get_lock(),
         )
 
     async def insert(
         self, index: int, obj: JsonSerializable, *, max_length: Optional[int] = None
     ) -> List[JsonSerializable]:
         return await self._config.driver.insert(
-            self.identifier_data, index, obj, default=self.default, max_length=max_length
+            self.identifier_data,
+            index,
+            obj,
+            default=self.default,
+            max_length=max_length,
+            lock=self.get_lock(),
         )
 
     async def index(self, obj: JsonSerializable, *, with_defaults: bool = True) -> int:
         try:
-            return await self._config.driver.index(self.identifier_data, obj, lock=self.get_lock())
+            return await self._config.driver.index(self.identifier_data, obj)
         except KeyError:
             return with_defaults is True and self.default.index(obj)
 
@@ -57,3 +57,6 @@ class Array(MutableValue):
         await self._config.driver.set_at(
             self.identifier_data, index, value, default=self.default, lock=self.get_lock()
         )
+
+    async def contains(self, item: JsonSerializable) -> bool:
+        return await self._config.driver.array_contains(self.identifier_data, item)

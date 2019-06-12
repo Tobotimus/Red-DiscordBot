@@ -5,6 +5,7 @@ import pytest
 
 # region Register Tests
 from redbot.core.config import ConfigCategory
+from redbot.core.errors import StoredTypeError
 
 
 @pytest.mark.asyncio
@@ -530,7 +531,7 @@ async def test_config_value_atomicity(config):
             async with config.foo.get_lock():
                 foo = await config.foo()
                 foo.append(0)
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)
                 await config.foo.set(foo)
 
         tasks.append(func())
@@ -549,7 +550,7 @@ async def test_config_ctxmgr_atomicity(config):
         async def func():
             async with config.foo() as foo:
                 foo.append(0)
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.01)
 
         tasks.append(func())
 
@@ -562,4 +563,124 @@ async def test_config_ctxmgr_atomicity(config):
 async def test_config_inc(config):
     config.register_global(foo=0)
 
+    assert await config.foo.inc() == await config.foo() == 1
 
+    assert await config.foo.inc(-1) == await config.foo() == 0
+
+
+@pytest.mark.asyncio
+async def test_config_toggle(config):
+    config.register_global(foo=False)
+
+    assert await config.foo.toggle() is await config.foo() is True
+    assert await config.foo.toggle() is await config.foo() is False
+
+
+@pytest.mark.asyncio
+async def test_config_append(config):
+    config.register_global(foo=[])
+
+    assert await config.foo.append(1) == await config.foo() == [1]
+    assert await config.foo.append(0, append_left=True) == await config.foo() == [0, 1]
+    assert await config.foo.append(2, max_length=2) == await config.foo() == [1, 2]
+    assert (
+        await config.foo.append(-1, max_length=2, append_left=True)
+        == await config.foo()
+        == [-1, 1]
+    )
+
+
+@pytest.mark.asyncio
+async def test_config_extend(config):
+    config.register_global(foo=[])
+
+    assert await config.foo.extend((1, 2)) == await config.foo() == [1, 2]
+    assert (
+        await config.foo.extend((-1, 0), extend_left=True) == await config.foo() == [-1, 0, 1, 2]
+    )
+    assert await config.foo.extend((3, 4), max_length=5) == await config.foo() == [0, 1, 2, 3, 4]
+    assert (
+        await config.foo.extend((-3, -2), max_length=3, extend_left=True)
+        == await config.foo()
+        == [-3, -2, 0]
+    )
+
+
+@pytest.mark.asyncio
+async def test_config_insert(config):
+    config.register_global(foo=[3])
+
+    assert await config.foo.insert(0, 5) == await config.foo() == [5, 3]
+    assert await config.foo.insert(-1, 2) == await config.foo() == [5, 2, 3]
+    assert await config.foo.insert(1, 4, max_length=3) == await config.foo() == [5, 4, 2]
+
+
+@pytest.mark.asyncio
+async def test_config_index(config):
+    config.register_global(foo=[])
+    await config.foo.set(["bar", "baz", "foobar"])
+
+    assert await config.foo.index("baz") == 1
+    await config.foo.set(["baz"])
+    assert await config.foo.index("baz") == 0
+
+    with pytest.raises(ValueError):
+        await config.foo.index("bang")
+
+
+@pytest.mark.asyncio
+async def test_config_element_access(config):
+    config.register_global(foo=[])
+    await config.foo.set(["bar", "baz", "foobar"])
+
+    assert await config.foo.at(1) == "baz"
+    assert await config.foo.at(-1) == "foobar"
+
+    with pytest.raises(IndexError):
+        await config.foo.at(3)
+
+    with pytest.raises(IndexError):
+        await config.foo.at(-4)
+
+
+@pytest.mark.asyncio
+async def test_config_element_assignment(config):
+    config.register_global(foo=["foo", "bar"])
+
+    await config.foo.set_at(1, "baz")
+    assert await config.foo() == ["foo", "baz"]
+    await config.foo.set_at(0, "faz")
+    assert await config.foo() == ["faz", "baz"]
+    await config.foo.set_at(-1, "bav")
+    assert await config.foo() == ["faz", "bav"]
+
+    with pytest.raises(IndexError):
+        await config.foo.set_at(2, "bar")
+
+    with pytest.raises(IndexError):
+        await config.foo.set_at(-3, "bar")
+
+
+@pytest.mark.asyncio
+async def test_config_group_contains(config):
+    await config.foo.set(False)
+    await config.guild(100).foo.set(True)
+
+    assert await config.contains("foo") is True
+    assert await config.contains("baz") is False
+
+    assert await config.guild.contains(100) is True
+    assert await config.guild.contains(101) is False
+
+
+@pytest.mark.asyncio
+async def test_config_array_contains(config):
+    config.register_global(foo=[])
+    await config.foo.set(["bar"])
+
+    assert await config.foo.contains("bar") is True
+    assert await config.foo.contains("baz") is False
+
+    await config.foo.set(False)
+    with pytest.raises(StoredTypeError):
+        await config.foo.contains("bar")

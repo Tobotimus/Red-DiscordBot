@@ -59,7 +59,9 @@ def driver(tmpdir_factory):
 
     rand = str(uuid.uuid4())
     path = Path(str(tmpdir_factory.mktemp(rand)))
-    return config_module.get_driver("PyTest", str(random.randint(1, 999999)), data_path_override=path)
+    return config_module.get_driver(
+        "PyTest", str(random.randint(1, 999999)), data_path_override=path
+    )
 
 
 @pytest.fixture()

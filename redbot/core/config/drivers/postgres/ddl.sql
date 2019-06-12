@@ -322,6 +322,8 @@ CREATE OR REPLACE FUNCTION
     ELSE
       -- Deleting an entire cog's data
       EXECUTE format('DROP SCHEMA %I CASCADE', schemaname);
+
+      DELETE FROM red_config.red_cogs AS t WHERE t.schemaname = schemaname;
     END IF;
   END;
 $$;
@@ -376,7 +378,7 @@ CREATE OR REPLACE FUNCTION
     IF existing_document IS NULL THEN
       -- We need to insert a new document
       result := default_value + amount;
-      new_document := red_utils.jsonb_set2('{}', result, VARIADIC id_data.identifiers);
+      new_document := red_utils.jsonb_set2('{}', to_jsonb(result), VARIADIC id_data.identifiers);
       pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
 
       EXECUTE format(
@@ -402,7 +404,7 @@ CREATE OR REPLACE FUNCTION
       END IF;
 
       new_document := red_utils.jsonb_set2(
-        existing_document, to_jsonb(result), id_data.identifiers);
+        existing_document, to_jsonb(result), VARIADIC id_data.identifiers);
 
       EXECUTE format(
         'UPDATE %I.%I SET json_data = $2 WHERE %s',
@@ -463,7 +465,7 @@ CREATE OR REPLACE FUNCTION
     IF existing_document IS NULL THEN
       -- We need to insert a new document
       result := NOT default_value;
-      new_document := red_utils.jsonb_set2('{}', result, VARIADIC id_data.identifiers);
+      new_document := red_utils.jsonb_set2('{}', to_jsonb(result), VARIADIC id_data.identifiers);
       pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
 
       EXECUTE format(
@@ -489,7 +491,7 @@ CREATE OR REPLACE FUNCTION
       END IF;
 
       new_document := red_utils.jsonb_set2(
-        existing_document, to_jsonb(result), id_data.identifiers);
+        existing_document, to_jsonb(result), VARIADIC id_data.identifiers);
 
       EXECUTE format(
         'UPDATE %I.%I SET json_data = $2 WHERE %s',
@@ -505,8 +507,8 @@ $$;
 CREATE OR REPLACE FUNCTION
   red_config.extend(
     id_data red_config.identifier_data,
-    new_value text,
-    default_value text,
+    new_value jsonb,
+    default_value jsonb,
     max_length integer DEFAULT NULL,
     extend_left boolean DEFAULT FALSE,
     OUT result jsonb
@@ -544,7 +546,7 @@ CREATE OR REPLACE FUNCTION
 
     IF existing_document IS NULL THEN
       result := default_value || new_value;
-      new_document := red_utils.jsonb_set2('{}'::jsonb, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2('{}'::jsonb, result, VARIADIC id_data.identifiers);
       pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
 
       EXECUTE format(
@@ -578,7 +580,8 @@ CREATE OR REPLACE FUNCTION
         END LOOP;
       END IF;
 
-      new_document := red_utils.jsonb_set2(existing_document, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2(
+        existing_document, result, VARIADIC id_data.identifiers);
 
       EXECUTE format(
         'UPDATE %I.%I SET json_data = $2 WHERE %s',
@@ -632,7 +635,7 @@ CREATE OR REPLACE FUNCTION
 
     IF existing_document IS NULL THEN
       result := jsonb_insert(default_value, ARRAY[array_index::text], new_value);
-      new_document := red_utils.jsonb_set2('{}'::jsonb, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2('{}'::jsonb, result, VARIADIC id_data.identifiers);
       pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
 
       EXECUTE format(
@@ -661,7 +664,8 @@ CREATE OR REPLACE FUNCTION
         END LOOP;
       END IF;
 
-      new_document := red_utils.jsonb_set2(existing_document, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2(
+        existing_document, result, VARIADIC id_data.identifiers);
 
       EXECUTE format(
         'UPDATE %I.%I SET json_data = $2 WHERE %s',
@@ -688,17 +692,25 @@ CREATE OR REPLACE FUNCTION
     existing_value CONSTANT jsonb := red_config.get(id_data);
 
   BEGIN
-    IF jsonb_typeof(existing_value) != 'array' THEN
+    IF existing_value IS NULL THEN
+      result := NULL;
+
+    ELSIF jsonb_typeof(existing_value) != 'array' THEN
       RAISE EXCEPTION 'Cannot check index in non-array value %', existing_value
       USING ERRCODE = 'wrong_object_type';
-    END IF;
 
-    SELECT t.idx
-    INTO result
-    FROM (
-      SELECT row_number() OVER () idx, value elem
-      FROM jsonb_array_elements(existing_value)) t
-    WHERE t.elem = obj;
+    ELSE
+      SELECT t.idx
+      INTO result
+      FROM (
+        SELECT row_number() OVER () - 1 idx, value elem
+        FROM jsonb_array_elements(existing_value)) t
+      WHERE t.elem = obj;
+
+      IF result IS NULL THEN
+        result := -1;
+      END IF;
+    END IF;
   END;
 $$;
 
@@ -706,9 +718,9 @@ $$;
 CREATE OR REPLACE FUNCTION
   red_config.at(
     id_data red_config.identifier_data,
-    array_index integer
+    array_index integer,
+    OUT result jsonb
   )
-    RETURNS jsonb
     LANGUAGE 'plpgsql'
     STABLE
     PARALLEL SAFE
@@ -717,12 +729,21 @@ CREATE OR REPLACE FUNCTION
     existing_value CONSTANT jsonb := red_config.get(id_data);
 
   BEGIN
-    IF jsonb_typeof(existing_value) != 'array' THEN
+    IF existing_value IS NULL THEN
+      result := NULL;
+
+    ELSIF jsonb_typeof(existing_value) != 'array' THEN
       RAISE EXCEPTION 'Cannot do array-access on non-array value %', existing_value
       USING ERRCODE = 'wrong_object_type';
-    END IF;
 
-    RETURN existing_value -> array_index;
+    ELSE
+      result := existing_value -> array_index;
+
+      IF result IS NULL THEN
+        RAISE EXCEPTION 'Array index out of bounds'
+        USING ERRCODE = 'array_subscript_error';
+      END IF;
+    END IF;
   END;
 $$;
 
@@ -765,8 +786,13 @@ CREATE OR REPLACE FUNCTION
     INTO existing_document USING id_data.pkeys;
 
     IF existing_document IS NULL THEN
+      IF default_value ->> array_index IS NULL THEN
+        RAISE EXCEPTION 'Array index out of range'
+        USING ERRCODE = 'array_subscript_error';
+      END IF;
+
       result := jsonb_set(default_value, ARRAY[array_index::text], new_value);
-      new_document := red_utils.jsonb_set2('{}'::jsonb, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2('{}'::jsonb, result, VARIADIC id_data.identifiers);
       pkey_placeholders := red_utils.gen_pkey_placeholders(id_data.pkey_len, pkey_type);
 
       EXECUTE format(
@@ -779,6 +805,11 @@ CREATE OR REPLACE FUNCTION
     ELSE
       existing_value := existing_document #> id_data.identifiers;
 
+      IF existing_value ->> array_index IS NULL THEN
+        RAISE EXCEPTION 'Array index out of range'
+        USING ERRCODE = 'array_subscript_error';
+      END IF;
+
       IF existing_value IS NULL THEN
         existing_value := default_value;
 
@@ -788,7 +819,8 @@ CREATE OR REPLACE FUNCTION
       END IF;
 
       result := jsonb_set(existing_value, ARRAY[array_index::text], new_value);
-      new_document := red_utils.jsonb_set2(existing_document, result, id_data.identifiers);
+      new_document := red_utils.jsonb_set2(
+        existing_document, result, VARIADIC id_data.identifiers);
 
       EXECUTE format(
         'UPDATE %I.%I SET json_data = $2 WHERE %s',
@@ -902,6 +934,8 @@ CREATE OR REPLACE FUNCTION
     FOR cog_entry IN SELECT * FROM red_config.red_cogs t LOOP
       EXECUTE format('DROP SCHEMA %I CASCADE', cog_entry.schemaname);
     END LOOP;
+
+    DELETE FROM red_config.red_cogs WHERE TRUE;
   END;
 $$;
 
@@ -1127,29 +1161,4 @@ CREATE TABLE IF NOT EXISTS
     schemaname text NOT NULL,
     PRIMARY KEY (cog_name, cog_id)
 )
-;
-
-
-CREATE OR REPLACE FUNCTION
-  /*
-   * Trigger for removing cog's entry from `red_config.red_cogs` table
-   * when schema is dropped.
-   */
-  red_config.drop_schema_trigger_function()
-    RETURNS event_trigger
-    LANGUAGE 'plpgsql'
-  AS $$
-  DECLARE
-    obj record;
-  BEGIN
-    FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
-      DELETE FROM red_config.red_cogs AS r WHERE r.schemaname = obj.object_name;
-    END LOOP;
-  END;
-$$;
-DROP EVENT TRIGGER IF EXISTS red_drop_schema_trigger;
-CREATE EVENT TRIGGER red_drop_schema_trigger
-  ON SQL_DROP
-  WHEN TAG IN ('DROP SCHEMA')
-  EXECUTE PROCEDURE red_config.drop_schema_trigger_function()
 ;

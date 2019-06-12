@@ -325,7 +325,9 @@ async def wipe_bank(guild: Optional[discord.Guild] = None) -> None:
         await _conf.member[guild.id].clear()
 
 
-async def get_leaderboard(positions: int = None, guild: discord.Guild = None) -> List[Tuple[int, Dict[str, Any]]]:
+async def get_leaderboard(
+    positions: int = None, guild: discord.Guild = None
+) -> List[Tuple[int, Dict[str, Any]]]:
     """
     Gets the bank's leaderboard
 

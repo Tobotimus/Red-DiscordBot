@@ -251,7 +251,7 @@ class Group(MutableValue):
         *,
         acquire_lock: bool = True,
         with_defaults: bool = True,
-        int_primary_keys: bool = False
+        int_primary_keys: bool = False,
     ) -> ValueContextManager[Dict[Union[str, int], JsonSerializable]]:
         """Get a dictionary representation of this group's data.
 
@@ -359,8 +359,14 @@ class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Grou
         super().__init__(identifier_data, config)
         self.__primary_key_getter = primary_key_getter
 
-    def __call__(self, model: Union[_T, str, int, Sequence[Union[str, int]]], **kwargs) -> Group:
+    def __call__(
+        self, model: Union[_T, str, int, Sequence[Union[str, int]]] = ..., **kwargs
+    ) -> Group:
+        if model is ...:
+            raise TypeError("__call__() missing 1 required positional argument: 'model'")
+
         primary_key = self.__primary_key_getter(self._config, model, **kwargs)
+        new_identifier_data = self.identifier_data.add_primary_key(*primary_key)
         new_identifier_data = self.identifier_data.add_primary_key(*primary_key)
 
         return Group(identifier_data=new_identifier_data, config=self._config)
@@ -389,7 +395,7 @@ class _ModelGroupDescriptor:
                 self._category,
                 (),
                 (),
-                *ConfigCategory.get_pkey_info(self._category, instance.custom_groups)
+                *ConfigCategory.get_pkey_info(self._category, instance.custom_groups),
             ),
             config=instance,
         )

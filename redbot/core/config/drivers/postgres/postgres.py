@@ -108,11 +108,7 @@ class PostgresDriver(BaseDriver):
     async def set(self, identifier_data: IdentifierData, value: JsonSerializable = None) -> None:
         encoded = encode_identifier_data(identifier_data)
         try:
-            await self._execute(
-                "SELECT red_config.set($1, $2::jsonb)",
-                encoded,
-                json.dumps(value),
-            )
+            await self._execute("SELECT red_config.set($1, $2::jsonb)", encoded, json.dumps(value))
         except asyncpg.ErrorInAssignmentError:
             raise errors.CannotSetSubfield
 
@@ -133,7 +129,7 @@ class PostgresDriver(BaseDriver):
     ) -> Union[int, float]:
         try:
             return await self._execute(
-                f"SELECT red_config.inc($1, $2::jsonb, $3::jsonb)",
+                f"SELECT red_config.inc($1, $2::numeric, $3::numeric)",
                 encode_identifier_data(identifier_data),
                 value,
                 default,
@@ -145,7 +141,7 @@ class PostgresDriver(BaseDriver):
     async def toggle(self, identifier_data: IdentifierData, default: bool, **kwargs) -> bool:
         try:
             return await self._execute(
-                "SELECT red_config.inc($1, $2)",
+                "SELECT red_config.toggle($1, $2)",
                 encode_identifier_data(identifier_data),
                 default,
                 method=self._pool.fetchval,
@@ -164,15 +160,17 @@ class PostgresDriver(BaseDriver):
         **kwargs,
     ) -> List[JsonSerializable]:
         try:
-            return json.loads(await self._execute(
-                "SELECT red_config.extend($1, $2, $3, $4, $5)",
-                encode_identifier_data(identifier_data),
-                value,
-                default,
-                max_length,
-                extend_left,
-                method=self._pool.fetchval,
-            ))
+            return json.loads(
+                await self._execute(
+                    "SELECT red_config.extend($1, $2::jsonb, $3::jsonb, $4, $5)",
+                    encode_identifier_data(identifier_data),
+                    json.dumps(list(value)),
+                    json.dumps(default),
+                    max_length,
+                    extend_left,
+                    method=self._pool.fetchval,
+                )
+            )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
 
@@ -187,15 +185,17 @@ class PostgresDriver(BaseDriver):
         **kwargs,
     ) -> List[JsonSerializable]:
         try:
-            return json.loads(await self._execute(
-                "SELECT red_config.insert($1, $2, $3::jsonb, $4::jsonb, $5)",
-                encode_identifier_data(identifier_data),
-                index,
-                json.dumps(value),
-                json.dumps(default),
-                max_length,
-                method=self._pool.fetchval,
-            ))
+            return json.loads(
+                await self._execute(
+                    "SELECT red_config.insert($1, $2, $3::jsonb, $4::jsonb, $5)",
+                    encode_identifier_data(identifier_data),
+                    index,
+                    json.dumps(value),
+                    json.dumps(default),
+                    max_length,
+                    method=self._pool.fetchval,
+                )
+            )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
 
@@ -204,8 +204,8 @@ class PostgresDriver(BaseDriver):
             result = await self._execute(
                 "SELECT red_config.index($1, $2::jsonb)",
                 encode_identifier_data(identifier_data),
-                value,
-                method=self._pool.fetchval
+                json.dumps(value),
+                method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
@@ -214,6 +214,8 @@ class PostgresDriver(BaseDriver):
         else:
             if result is None:
                 raise KeyError
+            elif result == -1:
+                raise ValueError(f"{value} is not in Array")
             return result
 
     async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
@@ -228,6 +230,8 @@ class PostgresDriver(BaseDriver):
             raise errors.StoredTypeError(*exc.args)
         except asyncpg.UndefinedTableError:
             raise KeyError from None
+        except asyncpg.ArraySubscriptError:
+            raise IndexError("Array index out of bounds") from None
         else:
             if result is None:
                 raise KeyError
@@ -252,17 +256,16 @@ class PostgresDriver(BaseDriver):
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
+        except asyncpg.ArraySubscriptError:
+            raise IndexError("Array index out of bounds") from None
 
-    async def object_contains(
-        self,
-        identifier_data: IdentifierData,
-        item: str,
-    ) -> bool:
+    async def object_contains(self, identifier_data: IdentifierData, item: str) -> bool:
         try:
             result = await self._execute(
                 "SELECT red_config.object_contains($1, $2)",
                 encode_identifier_data(identifier_data),
                 item,
+                method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)
@@ -274,15 +277,14 @@ class PostgresDriver(BaseDriver):
             return result
 
     async def array_contains(
-        self,
-        identifier_data: IdentifierData,
-        item: JsonSerializable,
+        self, identifier_data: IdentifierData, item: JsonSerializable
     ) -> bool:
         try:
             result = await self._execute(
-                "SELECT red_config.object_contains($1, $2)",
+                "SELECT red_config.array_contains($1, $2::jsonb)",
                 encode_identifier_data(identifier_data),
-                item,
+                json.dumps(item),
+                method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
             raise errors.StoredTypeError(*exc.args)

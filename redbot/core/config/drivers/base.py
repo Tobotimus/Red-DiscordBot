@@ -210,10 +210,18 @@ class BaseDriver(abc.ABC):
         return existing_value
 
     async def index(self, identifier_data: IdentifierData, value: JsonSerializable) -> int:
-        return (await self.get(identifier_data)).index(value)
+        existing_value = await self.get(identifier_data)
+        try:
+            return existing_value.index(value)
+        except AttributeError:
+            raise StoredTypeError(f"Cannot call index() on non-array value {existing_value}")
 
     async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
-        return (await self.get(identifier_data))[index]
+        value = await self.get(identifier_data)
+        if not isinstance(value, list):
+            raise StoredTypeError(f"Cannot call at() on non-array value {value}")
+
+        return value[index]
 
     async def set_at(
         self,
@@ -229,28 +237,25 @@ class BaseDriver(abc.ABC):
                 existing_value = await self.get(identifier_data)
             except KeyError:
                 existing_value = default
+            if not isinstance(existing_value, list):
+                raise StoredTypeError(f"Cannot call set_at() on non-array value {value}")
+
             existing_value[index] = value
             await self.set(identifier_data, existing_value)
 
-    async def object_contains(
-        self,
-        identifier_data: IdentifierData,
-        item: str,
-    ) -> bool:
-        value = self.get(identifier_data)
+    async def object_contains(self, identifier_data: IdentifierData, item: str) -> bool:
+        value = await self.get(identifier_data)
         if not isinstance(value, dict):
-            raise StoredTypeError(f"Cannot call object_contains on non-object value {value}")
+            raise StoredTypeError(f"Cannot call object_contains() on non-object value {value}")
 
         return item in value
 
     async def array_contains(
-        self,
-        identifier_data: IdentifierData,
-        item: JsonSerializable,
+        self, identifier_data: IdentifierData, item: JsonSerializable
     ) -> bool:
-        value = self.get(identifier_data)
+        value = await self.get(identifier_data)
         if not isinstance(value, list):
-            raise StoredTypeError(f"Cannot call array_contains on non-array value {value}")
+            raise StoredTypeError(f"Cannot call array_contains() on non-array value {value}")
 
         return item in value
 

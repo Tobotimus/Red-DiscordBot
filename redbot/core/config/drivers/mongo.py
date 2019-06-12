@@ -212,7 +212,7 @@ class MongoDriver(BaseDriver):
         uuid = self._escape_key(identifier_data.uuid)
         primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
         ret = {"_id.RED_uuid": uuid}
-        if len(identifier_data.primary_key) < identifier_data.primary_key_len:
+        if len(identifier_data.primary_key) == identifier_data.primary_key_len:
             ret["_id.RED_primary_key"] = primary_key
         elif identifier_data.primary_key:
             for i, key in enumerate(primary_key):
@@ -429,51 +429,6 @@ class MongoDriver(BaseDriver):
 
         return partial
 
-    async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
-        if not identifier_data.identifiers:
-            raise StoredTypeError("Cannot call at() on a group!")
-
-        return await self.get(identifier_data.add_identifier(str(index)))
-
-    async def set_at(
-        self,
-        identifier_data: IdentifierData,
-        index: int,
-        value: JsonSerializable,
-        default: List[JsonSerializable],
-        *,
-        lock: asyncio.Lock,
-    ) -> None:
-        if not identifier_data.identifiers:
-            raise StoredTypeError("Cannot call set_at() on a group!")
-
-        uuid = self._escape_key(identifier_data.uuid)
-        primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
-        dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
-        mongo_collection = self.get_collection(identifier_data.category)
-        mongo_filter = {"_id": {"RED_uuid": uuid, "RED_primary_key": primary_key}}
-
-        async with lock:
-            exists = await mongo_collection.find_one(
-                mongo_filter, projection={"_id": False, dot_identifiers: True}
-            )
-            if not exists:
-                existing_value = default
-                existing_value[index] = value
-                await self.set(identifier_data, existing_value)
-            else:
-                update_stmt = {"$set": {".".join((dot_identifiers, str(index))): value}}
-                try:
-                    await mongo_collection.update_one(
-                        mongo_filter, update=update_stmt, upsert=True
-                    )
-                except pymongo.errors.WriteError as exc:
-                    if exc.args and exc.args[0].startswith("Cannot create field"):
-                        raise errors.CannotSetSubfield
-                    else:
-                        # Unhandled driver exception, should expose.
-                        raise
-
     async def object_contains(self, identifier_data: IdentifierData, item: str) -> bool:
         uuid = self._escape_key(identifier_data.uuid)
         mongo_collection = self.get_collection(identifier_data.category)
@@ -488,7 +443,7 @@ class MongoDriver(BaseDriver):
             primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
             mongo_filter = {
                 "_id": {"RED_uuid": uuid, "RED_primary_key": primary_key},
-                "$exists": item,
+                item: {"$exists": True},
             }
         else:
             # Embedded document

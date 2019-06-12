@@ -46,7 +46,7 @@ class ValueContextManager(Awaitable[_T], AsyncContextManager[_T]):
         value_obj: "Value",
         getter: Callable[[], Awaitable[JsonSerializable]],
         *,
-        acquire_lock: bool
+        acquire_lock: bool,
     ):
         self.__value_obj = value_obj
         self.__getter = getter
@@ -232,7 +232,9 @@ class Value:
             value = str_key_dict(value)
         await self._config.driver.set(self.identifier_data, value=value)
 
-    async def inc(self, value, default: Optional[Union[int, float]] = None) -> Union[int, float]:
+    async def inc(
+        self, value: Union[int, float] = 1, default: Optional[Union[int, float]] = None
+    ) -> Union[int, float]:
         """Increment and return the value of the data element pointed to by `identifiers`.
 
         Example

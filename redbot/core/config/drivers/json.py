@@ -1,3 +1,4 @@
+import asyncio
 import json
 import pickle
 import weakref
@@ -157,10 +158,14 @@ class JsonDriver(BaseDriver):
             await self.jsonIO._threadsafe_save_json(self.data)
 
     async def inc(
-        self, identifier_data: IdentifierData, value: Union[int, float], default: Union[int, float]
+        self,
+        identifier_data: IdentifierData,
+        value: Union[int, float],
+        default: Union[int, float],
+        **kwargs,
     ):
         partial = self.data
-        full_identifiers = identifier_data.to_tuple()
+        full_identifiers = identifier_data.to_tuple()[1:]
         for i in full_identifiers[:-1]:
             if i not in partial:
                 partial[i] = {}
@@ -174,13 +179,11 @@ class JsonDriver(BaseDriver):
 
         return partial[full_identifiers[-1]]
 
-    async def toggle(self, identifier_data: IdentifierData, default: bool):
+    async def toggle(self, identifier_data: IdentifierData, default: bool, **kwargs):
         partial = self.data
-        full_identifiers = identifier_data.to_tuple()
+        full_identifiers = identifier_data.to_tuple()[1:]
         for i in full_identifiers[:-1]:
-            if i not in partial:
-                partial[i] = {}
-            partial = partial[i]
+            partial = partial.setdefault(i, {})
 
         curr_val = partial.get(full_identifiers[-1], default)
         if not isinstance(curr_val, bool):
@@ -188,7 +191,7 @@ class JsonDriver(BaseDriver):
         partial[full_identifiers[-1]] = not curr_val
         await self.jsonIO._threadsafe_save_json(self.data)
 
-        return partial[full_identifiers[-1]]
+        return not curr_val
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:
