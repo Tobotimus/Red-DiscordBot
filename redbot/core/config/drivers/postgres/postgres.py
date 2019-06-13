@@ -136,7 +136,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
 
     async def toggle(self, identifier_data: IdentifierData, default: bool, **kwargs) -> bool:
         try:
@@ -147,7 +147,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
 
     async def extend(
         self,
@@ -172,7 +172,7 @@ class PostgresDriver(BaseDriver):
                 )
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
 
     async def insert(
         self,
@@ -197,7 +197,7 @@ class PostgresDriver(BaseDriver):
                 )
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
 
     async def index(self, identifier_data: IdentifierData, value: JsonSerializable) -> int:
         try:
@@ -208,7 +208,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
         except asyncpg.UndefinedTableError:
             raise KeyError from None
         else:
@@ -227,7 +227,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
         except asyncpg.UndefinedTableError:
             raise KeyError from None
         except asyncpg.ArraySubscriptError:
@@ -255,7 +255,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
         except asyncpg.ArraySubscriptError:
             raise IndexError("Array index out of bounds") from None
 
@@ -268,7 +268,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
         except asyncpg.UndefinedTableError:
             raise KeyError from None
         else:
@@ -287,7 +287,7 @@ class PostgresDriver(BaseDriver):
                 method=self._pool.fetchval,
             )
         except asyncpg.WrongObjectTypeError as exc:
-            raise errors.StoredTypeError(*exc.args)
+            raise errors.StoredTypeError(*exc.args) from None
         except asyncpg.UndefinedTableError:
             raise KeyError from None
         else:

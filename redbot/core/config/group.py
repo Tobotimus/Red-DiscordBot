@@ -311,7 +311,7 @@ class Group(MutableValue):
 
     async def set(self, value):
         if not isinstance(value, dict):
-            raise ValueError("You may only set the value of a group to be a dict.")
+            raise TypeError("You may only set the value of a Group to be a dict.")
         await super().set(value)
 
     async def set_raw(self, *nested_path: JsonSerializable, value):

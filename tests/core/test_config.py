@@ -94,7 +94,7 @@ async def test_nested_registration_and_changing(config):
 
     assert await config.foo.bar.baz() is False
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         await config.foo.set(True)
 
 
@@ -564,8 +564,11 @@ async def test_config_inc(config):
     config.register_global(foo=0)
 
     assert await config.foo.inc() == await config.foo() == 1
-
     assert await config.foo.inc(-1) == await config.foo() == 0
+
+    await config.foo.set(None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.inc()
 
 
 @pytest.mark.asyncio
@@ -574,6 +577,10 @@ async def test_config_toggle(config):
 
     assert await config.foo.toggle() is await config.foo() is True
     assert await config.foo.toggle() is await config.foo() is False
+
+    await config.foo.set(None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.toggle()
 
 
 @pytest.mark.asyncio
@@ -588,6 +595,10 @@ async def test_config_append(config):
         == await config.foo()
         == [-1, 1]
     )
+
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.append(1)
 
 
 @pytest.mark.asyncio
@@ -605,6 +616,10 @@ async def test_config_extend(config):
         == [-3, -2, 0]
     )
 
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.extend([1])
+
 
 @pytest.mark.asyncio
 async def test_config_insert(config):
@@ -613,6 +628,10 @@ async def test_config_insert(config):
     assert await config.foo.insert(0, 5) == await config.foo() == [5, 3]
     assert await config.foo.insert(-1, 2) == await config.foo() == [5, 2, 3]
     assert await config.foo.insert(1, 4, max_length=3) == await config.foo() == [5, 4, 2]
+
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.insert(0, 1)
 
 
 @pytest.mark.asyncio
@@ -626,6 +645,10 @@ async def test_config_index(config):
 
     with pytest.raises(ValueError):
         await config.foo.index("bang")
+
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.index("bar")
 
 
 @pytest.mark.asyncio
@@ -641,6 +664,10 @@ async def test_config_element_access(config):
 
     with pytest.raises(IndexError):
         await config.foo.at(-4)
+
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.at(0)
 
 
 @pytest.mark.asyncio
@@ -660,6 +687,10 @@ async def test_config_element_assignment(config):
     with pytest.raises(IndexError):
         await config.foo.set_at(-3, "bar")
 
+    await config.set_raw("foo", value=None)
+    with pytest.raises(StoredTypeError):
+        await config.foo.set_at(0, "bar")
+
 
 @pytest.mark.asyncio
 async def test_config_group_contains(config):
@@ -672,6 +703,12 @@ async def test_config_group_contains(config):
     assert await config.guild.contains(100) is True
     assert await config.guild.contains(101) is False
 
+    config.register_global(bar={})
+    await config.set_raw("bar", value=None)
+
+    with pytest.raises(StoredTypeError):
+        await config.bar.contains(1)
+
 
 @pytest.mark.asyncio
 async def test_config_array_contains(config):
@@ -681,6 +718,6 @@ async def test_config_array_contains(config):
     assert await config.foo.contains("bar") is True
     assert await config.foo.contains("baz") is False
 
-    await config.foo.set(False)
+    await config.set_raw("foo", value=None)
     with pytest.raises(StoredTypeError):
         await config.foo.contains("bar")

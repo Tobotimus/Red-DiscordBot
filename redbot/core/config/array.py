@@ -8,6 +8,11 @@ __all__ = ["Array"]
 
 
 class Array(MutableValue):
+    async def set(self, value: JsonSerializable) -> None:
+        if not isinstance(value, list):
+            raise TypeError("You may only set the value of an Array to be a list.")
+        await super().set(value)
+
     async def append(
         self, obj: JsonSerializable, *, max_length: Optional[int] = None, append_left: bool = False
     ) -> List[JsonSerializable]:

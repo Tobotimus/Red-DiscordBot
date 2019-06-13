@@ -203,7 +203,7 @@ class MongoDriver(BaseDriver):
                 # digit, it will successfully set the value in the array, and not raise an error.
                 # This is different to how other drivers would behave, and could lead to unexpected
                 # behaviour.
-                raise errors.CannotSetSubfield
+                raise errors.CannotSetSubfield(*exc.args) from None
             else:
                 # Unhandled driver exception, should expose.
                 raise
@@ -288,10 +288,12 @@ class MongoDriver(BaseDriver):
                 )
             except pymongo.errors.WriteError as exc:
                 if exc.args and exc.args[0].startswith("Cannot create field"):
-                    raise errors.CannotSetSubfield
+                    raise errors.CannotSetSubfield(*exc.args) from None
                 else:
                     # Unhandled driver exception, should expose.
                     raise
+            except pymongo.errors.OperationFailure as exc:
+                raise errors.StoredTypeError(*exc.args) from None
 
         partial = result
         for ident in map(self._escape_key, identifier_data.identifiers):
@@ -362,6 +364,8 @@ class MongoDriver(BaseDriver):
                 else:
                     # Unhandled driver exception, should expose.
                     raise
+            except pymongo.errors.OperationFailure as exc:
+                raise errors.StoredTypeError(*exc.args)
 
         partial = result
         for ident in map(self._escape_key, identifier_data.identifiers):
@@ -418,43 +422,18 @@ class MongoDriver(BaseDriver):
                 )
             except pymongo.errors.WriteError as exc:
                 if exc.args and exc.args[0].startswith("Cannot create field"):
-                    raise errors.CannotSetSubfield
+                    raise errors.CannotSetSubfield(*exc.args) from None
                 else:
                     # Unhandled driver exception, should expose.
                     raise
+            except pymongo.errors.OperationFailure as exc:
+                raise errors.StoredTypeError(*exc.args) from None
 
         partial = result
         for ident in map(self._escape_key, identifier_data.identifiers):
             partial = partial[ident]
 
         return partial
-
-    async def object_contains(self, identifier_data: IdentifierData, item: str) -> bool:
-        uuid = self._escape_key(identifier_data.uuid)
-        mongo_collection = self.get_collection(identifier_data.category)
-
-        if len(identifier_data.primary_key) < identifier_data.primary_key_len:
-            # This shit is fucked
-            identifier_data = identifier_data.add_primary_key(item)
-            mongo_filter = self.generate_primary_key_filter(identifier_data)
-        elif not identifier_data.identifiers:
-            # Top-level key of document
-            mongo_collection = self.get_collection(identifier_data.category)
-            primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
-            mongo_filter = {
-                "_id": {"RED_uuid": uuid, "RED_primary_key": primary_key},
-                item: {"$exists": True},
-            }
-        else:
-            # Embedded document
-            identifier_data = identifier_data.add_identifier(item)
-            dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
-            primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
-            mongo_filter = {
-                "_id": {"RED_uuid": uuid, "RED_primary_key": primary_key},
-                dot_identifiers: {"$exists": True},
-            }
-        return bool(await mongo_collection.find_one(mongo_filter, projection={"_id": True}))
 
     @classmethod
     async def aiter_cogs(cls) -> AsyncIterator[Tuple[str, str]]:

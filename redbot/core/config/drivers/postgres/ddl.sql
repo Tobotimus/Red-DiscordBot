@@ -805,10 +805,6 @@ CREATE OR REPLACE FUNCTION
     ELSE
       existing_value := existing_document #> id_data.identifiers;
 
-      IF existing_value ->> array_index IS NULL THEN
-        RAISE EXCEPTION 'Array index out of range'
-        USING ERRCODE = 'array_subscript_error';
-      END IF;
 
       IF existing_value IS NULL THEN
         existing_value := default_value;
@@ -816,6 +812,10 @@ CREATE OR REPLACE FUNCTION
       ELSIF jsonb_typeof(existing_value) != 'array' THEN
         RAISE EXCEPTION 'Cannot set at index in non-array value %', existing_value
         USING ERRCODE = 'wrong_object_type';
+
+      ELSIF existing_value ->> array_index IS NULL THEN
+        RAISE EXCEPTION 'Array index out of range'
+        USING ERRCODE = 'array_subscript_error';
       END IF;
 
       result := jsonb_set(existing_value, ARRAY[array_index::text], new_value);

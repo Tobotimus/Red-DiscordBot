@@ -128,6 +128,7 @@ class BaseDriver(abc.ABC):
             else:
                 if not isinstance(existing_value, (int, float)):
                     raise StoredTypeError(f"Cannot increment non-numeric value {existing_value}")
+
             new_value = existing_value + value
             await self.set(identifier_data, new_value)
         return new_value
@@ -155,6 +156,7 @@ class BaseDriver(abc.ABC):
             else:
                 if not isinstance(existing_value, bool):
                     raise StoredTypeError(f"Cannot toggle non-boolean value {existing_value}")
+
             new_value = not existing_value
             await self.set(identifier_data, new_value)
         return new_value
@@ -174,10 +176,15 @@ class BaseDriver(abc.ABC):
                 existing_value = await self.get(identifier_data)
             except KeyError:
                 existing_value = default
+            else:
+                if not isinstance(existing_value, list):
+                    raise StoredTypeError(f"Cannot extend non-array value {existing_value}")
+
             if extend_left is True:
                 existing_value[:] = [*value, *existing_value]
             else:
                 existing_value.extend(value)
+
             if max_length is not None:
                 oversize_by = len(existing_value) - max_length
                 if oversize_by > 0:
@@ -185,6 +192,7 @@ class BaseDriver(abc.ABC):
                         existing_value[:] = existing_value[oversize_by:]
                     else:
                         existing_value[:] = existing_value[:max_length]
+
             await self.set(identifier_data, existing_value)
         return existing_value
 
@@ -203,7 +211,14 @@ class BaseDriver(abc.ABC):
                 existing_value = await self.get(identifier_data)
             except KeyError:
                 existing_value = default
-            existing_value.insert(index, value)
+
+            try:
+                existing_value.insert(index, value)
+            except AttributeError:
+                raise StoredTypeError(
+                    f"Cannot insert into non-array value {existing_value}"
+                ) from None
+
             if max_length is not None and len(existing_value) > max_length:
                 del existing_value[-1]
             await self.set(identifier_data, existing_value)
@@ -214,12 +229,14 @@ class BaseDriver(abc.ABC):
         try:
             return existing_value.index(value)
         except AttributeError:
-            raise StoredTypeError(f"Cannot call index() on non-array value {existing_value}")
+            raise StoredTypeError(
+                f"Cannot call index() on non-array value {existing_value}"
+            ) from None
 
     async def at(self, identifier_data: IdentifierData, index: int) -> JsonSerializable:
         value = await self.get(identifier_data)
         if not isinstance(value, list):
-            raise StoredTypeError(f"Cannot call at() on non-array value {value}")
+            raise StoredTypeError(f"Cannot do element-access on non-array value {value}")
 
         return value[index]
 
@@ -238,7 +255,7 @@ class BaseDriver(abc.ABC):
             except KeyError:
                 existing_value = default
             if not isinstance(existing_value, list):
-                raise StoredTypeError(f"Cannot call set_at() on non-array value {value}")
+                raise StoredTypeError(f"Cannot do element-assignment on non-array value {value}")
 
             existing_value[index] = value
             await self.set(identifier_data, existing_value)
