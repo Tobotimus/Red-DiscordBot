@@ -438,6 +438,7 @@ class Config:
 
         """
         try:
+            # noinspection PyUnresolvedReferences
             _id = user.id
         except AttributeError:
             _id = user

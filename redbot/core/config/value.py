@@ -113,48 +113,7 @@ class Value:
         else:
             return inner
 
-    def get_lock(self) -> asyncio.Lock:
-        """Get a lock to create a critical region where this value is accessed.
-
-        When using this lock, make sure you either use it with the
-        ``async with`` syntax, or if that's not feasible, ensure you
-        keep a reference to it from the acquisition to the release of
-        the lock. That is, if you can't use ``async with`` syntax, use
-        the lock like this::
-
-            lock = config.foo.get_lock()
-            await lock.acquire()
-            # Do stuff...
-            lock.release()
-
-        Do not use it like this::
-
-            await config.foo.get_lock().acquire()
-            # Do stuff...
-            config.foo.get_lock().release()
-
-        Doing it the latter way will likely cause an error, as the
-        acquired lock will be cleaned up by the garbage collector before
-        it is released, meaning the second call to ``get_lock()`` will
-        return a different lock to the first call.
-
-        Returns
-        -------
-        asyncio.Lock
-            A lock which is weakly cached for this value object.
-
-        """
-        # noinspection PyProtectedMember
-        return self._config._lock_cache.setdefault(self.identifier_data, asyncio.Lock())
-
-    async def _get(self, default: JsonSerializable = ..., **kwargs):
-        try:
-            ret = await self._config.driver.get(self.identifier_data)
-        except KeyError:
-            return default if default is not ... else self.default
-        return ret
-
-    async def __call__(self, default=..., **kwargs: Any) -> Awaitable[JsonSerializable]:
+    def __call__(self, default: Any = ..., **kwargs) -> Awaitable[JsonSerializable]:
         """Get the literal value of this data element.
 
         Each `Value` object is created by the `Group.__getattr__` method. The
@@ -201,15 +160,15 @@ class Value:
 
         Returns
         -------
-        JsonSerializable
+        Awaitable[JsonSerializable]
             A coroutine object mixed in with an async context manager. When
             awaited, this returns the raw data value. When used in :code:`async
             with` syntax, on gets the value on entrance, and sets it on exit.
 
         """
-        return await self._get(default)
+        return self._get(default)
 
-    async def set(self, value):
+    async def set(self, value: JsonSerializable) -> None:
         """Set the value of the data elements pointed to by `identifiers`.
 
         Example
@@ -231,6 +190,12 @@ class Value:
         if isinstance(value, dict):
             value = str_key_dict(value)
         await self._config.driver.set(self.identifier_data, value=value)
+
+    async def clear(self) -> None:
+        """
+        Clears the value from record for the data element pointed to by `identifiers`.
+        """
+        await self._config.driver.clear(self.identifier_data)
 
     async def inc(
         self, value: Union[int, float] = 1, default: Optional[Union[int, float]] = None
@@ -301,11 +266,46 @@ class Value:
             self.identifier_data, default=default, lock=self.get_lock()
         )
 
-    async def clear(self):
+    def get_lock(self) -> asyncio.Lock:
+        """Get a lock to create a critical region where this value is accessed.
+
+        When using this lock, make sure you either use it with the
+        ``async with`` syntax, or if that's not feasible, ensure you
+        keep a reference to it from the acquisition to the release of
+        the lock. That is, if you can't use ``async with`` syntax, use
+        the lock like this::
+
+            lock = config.foo.get_lock()
+            await lock.acquire()
+            # Do stuff...
+            lock.release()
+
+        Do not use it like this::
+
+            await config.foo.get_lock().acquire()
+            # Do stuff...
+            config.foo.get_lock().release()
+
+        Doing it the latter way will likely cause an error, as the
+        acquired lock will be cleaned up by the garbage collector before
+        it is released, meaning the second call to ``get_lock()`` will
+        return a different lock to the first call.
+
+        Returns
+        -------
+        asyncio.Lock
+            A lock which is weakly cached for this value object.
+
         """
-        Clears the value from record for the data element pointed to by `identifiers`.
-        """
-        await self._config.driver.clear(self.identifier_data)
+        # noinspection PyProtectedMember
+        return self._config._lock_cache.setdefault(self.identifier_data, asyncio.Lock())
+
+    async def _get(self, default: JsonSerializable = ..., **kwargs):
+        try:
+            ret = await self._config.driver.get(self.identifier_data)
+        except KeyError:
+            return default if default is not ... else self.default
+        return ret
 
 
 class MutableValue(Value):
@@ -314,7 +314,7 @@ class MutableValue(Value):
         return pickle.loads(pickle.dumps(super().default))
 
     def __call__(
-        self, default=..., **kwargs
+        self, default: Any = ..., **kwargs
     ) -> ValueContextManager[Union[List[JsonSerializable], Dict[str, JsonSerializable]]]:
         """Get the literal value of this data element.
 

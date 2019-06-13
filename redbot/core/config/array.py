@@ -1,4 +1,3 @@
-import asyncio
 from typing import List, Optional, Iterable
 
 from .utils import JsonSerializable
@@ -12,6 +11,9 @@ class Array(MutableValue):
         if not isinstance(value, list):
             raise TypeError("You may only set the value of an Array to be a list.")
         await super().set(value)
+
+    async def contains(self, item: JsonSerializable) -> bool:
+        return await self._config.driver.array_contains(self.identifier_data, item)
 
     async def append(
         self, obj: JsonSerializable, *, max_length: Optional[int] = None, append_left: bool = False
@@ -62,6 +64,3 @@ class Array(MutableValue):
         await self._config.driver.set_at(
             self.identifier_data, index, value, default=self.default, lock=self.get_lock()
         )
-
-    async def contains(self, item: JsonSerializable) -> bool:
-        return await self._config.driver.array_contains(self.identifier_data, item)

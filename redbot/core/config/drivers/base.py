@@ -58,7 +58,7 @@ class BaseDriver(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get(self, identifier_data: IdentifierData) -> Any:
+    async def get(self, identifier_data: IdentifierData) -> JsonSerializable:
         """
         Finds the value indicate by the given identifiers.
 
@@ -74,7 +74,7 @@ class BaseDriver(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def set(self, identifier_data: IdentifierData, value=None) -> None:
+    async def set(self, identifier_data: IdentifierData, value: JsonSerializable = None) -> None:
         """
         Sets the value of the key indicated by the given identifiers.
 
@@ -367,7 +367,7 @@ class BaseDriver(abc.ABC):
     async def export_data(
         self, custom_group_data: Dict[str, int]
     ) -> List[Tuple[str, Dict[str, Any]]]:
-        categories = [c.value for c in ConfigCategory]
+        categories = [str(c) for c in ConfigCategory]
         categories.extend(custom_group_data.keys())
 
         ret = []

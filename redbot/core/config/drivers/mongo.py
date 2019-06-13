@@ -1,7 +1,7 @@
 import asyncio
 import re
 from getpass import getpass
-from typing import Match, Pattern, Tuple, Optional, AsyncIterator, Union, Iterable, List
+from typing import Match, Pattern, Tuple, Optional, AsyncIterator, Union, Iterable, List, Dict, Any
 from urllib.parse import quote_plus
 
 from ..utils import JsonSerializable
@@ -174,7 +174,7 @@ class MongoDriver(BaseDriver):
             return self._unescape_dict_keys(partial)
         return partial
 
-    async def set(self, identifier_data: IdentifierData, value=None):
+    async def set(self, identifier_data: IdentifierData, value: JsonSerializable = None) -> None:
         uuid = self._escape_key(identifier_data.uuid)
         primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
         dot_identifiers = ".".join(map(self._escape_key, identifier_data.identifiers))
@@ -208,7 +208,7 @@ class MongoDriver(BaseDriver):
                 # Unhandled driver exception, should expose.
                 raise
 
-    def generate_primary_key_filter(self, identifier_data: IdentifierData):
+    def generate_primary_key_filter(self, identifier_data: IdentifierData) -> Dict[str, Any]:
         uuid = self._escape_key(identifier_data.uuid)
         primary_key = list(map(self._escape_key, self.get_primary_key(identifier_data)))
         ret = {"_id.RED_uuid": uuid}
@@ -222,7 +222,7 @@ class MongoDriver(BaseDriver):
             ret["_id.RED_primary_key"] = {"$exists": True}
         return ret
 
-    async def clear(self, identifier_data: IdentifierData):
+    async def clear(self, identifier_data: IdentifierData) -> None:
         # There are four cases here:
         # 1) We're clearing out a subset of identifiers (aka identifiers is NOT empty)
         # 2) We're clearing out full primary key and no identifiers (single document)
@@ -256,7 +256,7 @@ class MongoDriver(BaseDriver):
         default: Union[int, float],
         *,
         lock: asyncio.Lock,
-    ):
+    ) -> Union[int, float]:
         if not identifier_data.identifiers:
             raise StoredTypeError("Cannot call inc() on a group!")
 
@@ -497,7 +497,7 @@ class MongoDriver(BaseDriver):
         return _CHAR_ESCAPE_PATTERN.sub(_replace_with_unescaped, key)
 
     @classmethod
-    def _escape_dict_keys(cls, data: dict) -> dict:
+    def _escape_dict_keys(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively escape all keys in a dict."""
         ret = {}
         for key, value in data.items():
@@ -508,7 +508,7 @@ class MongoDriver(BaseDriver):
         return ret
 
     @classmethod
-    def _unescape_dict_keys(cls, data: dict) -> dict:
+    def _unescape_dict_keys(cls, data: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively unescape all keys in a dict."""
         ret = {}
         for key, value in data.items():
