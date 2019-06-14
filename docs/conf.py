@@ -211,3 +211,7 @@ intersphinx_mapping = {
 # If this string is non-empty, all blocks with ``>>>`` in them will be
 # tested, not just the ones explicitly marked with ``.. doctest::``
 doctest_test_doctest_blocks = ""
+
+# Autodoc
+autodoc_default_flags = ["show-inheritance"]
+autodoc_typehints = "none"

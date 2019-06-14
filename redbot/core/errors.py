@@ -58,6 +58,13 @@ class ConfigError(RedError):
     """Error in a Config operation."""
 
 
+class UnregisteredValueError(ConfigError, AttributeError):
+    """Raised when trying to access a sub-value of a
+    :class:`~redbot.core.config.Group` with no registered default whilst
+    `Config.force_registration` is ``True``.
+    """
+
+
 class StoredTypeError(ConfigError, TypeError):
     """A TypeError pertaining to stored Config data.
 

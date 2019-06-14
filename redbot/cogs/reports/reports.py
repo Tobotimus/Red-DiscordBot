@@ -44,9 +44,8 @@ class Reports(commands.Cog):
         super().__init__()
         self.bot = bot
         self.config = Config.get_conf(self, 78631113035100160, force_registration=True)
-        self.config.register_guild(**self.default_guild_settings)
-        self.config.init_custom("REPORT", 2)
-        self.config.register_custom("REPORT", **self.default_report)
+        self.config.guild.register(**self.default_guild_settings)
+        self.config.custom("REPORT").register(2, **self.default_report)
         self.antispam = {}
         self.user_cache = []
         self.tunnel_store = {}

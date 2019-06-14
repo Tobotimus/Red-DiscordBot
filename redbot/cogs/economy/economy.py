@@ -133,11 +133,11 @@ class Economy(commands.Cog):
         self.bot = bot
         self.file_path = "data/economy/settings.json"
         self.config = Config.get_conf(self, 1256844281)
-        self.config.register_guild(**self.default_guild_settings)
+        self.config.guild.register(**self.default_guild_settings)
         self.config.register_global(**self.default_global_settings)
-        self.config.register_member(**self.default_member_settings)
-        self.config.register_user(**self.default_user_settings)
-        self.config.register_role(**self.default_role_settings)
+        self.config.member.register(**self.default_member_settings)
+        self.config.user.register(**self.default_user_settings)
+        self.config.role.register(**self.default_role_settings)
         self.slot_register = defaultdict(dict)
 
     @guild_only_check()

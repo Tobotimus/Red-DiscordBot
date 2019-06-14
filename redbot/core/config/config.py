@@ -1,15 +1,15 @@
 import asyncio
 import pickle
-from typing import Any, Dict, MutableMapping, Optional, Tuple, TypeVar, Union, Sequence
+from typing import Any, Dict, MutableMapping, Optional, Tuple, TypeVar, Union, Sequence, cast
 import weakref
 
 import discord
 
 from .drivers import BaseDriver, get_driver
-from .group import Group, model_group, ModelGroup
+from .group import Group, model_group, ModelGroup, CustomGroup, _UnregisteredCustomGroup
 from .identifier_data import IdentifierData
 from .utils import ConfigCategory, JsonSerializable
-from .value import Value, ValueContextManager
+from .value import ValueContextManager
 
 __all__ = ["Config", "get_latest_confs"]
 
@@ -19,7 +19,7 @@ _config_cache = weakref.WeakValueDictionary()
 _retrieved = weakref.WeakSet()
 
 
-class Config:
+class Config(Group):
     """Configuration manager for cogs and Red.
 
     You should always use `get_conf` to instantiate a Config object. Use
@@ -80,22 +80,35 @@ class Config:
         unique_identifier: str,
         driver: BaseDriver,
         force_registration: bool = False,
-        defaults: dict = None,
+        defaults: Optional[dict] = None,
     ):
         self.cog_name = cog_name
         self.unique_identifier = unique_identifier
 
         self.driver: BaseDriver = driver
         self.force_registration = force_registration
-        self._defaults = defaults or {}
+        self._defaults: Dict[str, Dict[str, JsonSerializable]] = defaults or {}
 
         self.custom_groups: Dict[str, int] = {}
         self._lock_cache: MutableMapping[
             IdentifierData, asyncio.Lock
         ] = weakref.WeakValueDictionary()
 
+        super().__init__(
+            IdentifierData(
+                cog_name=self.cog_name,
+                uuid=self.unique_identifier,
+                category=str(ConfigCategory.GLOBAL),
+                primary_key=(),
+                identifiers=(),
+                primary_key_len=0,
+                is_custom=False,
+            ),
+            config=self,
+        )
+
     @property
-    def defaults(self):
+    def all_defaults(self) -> Dict[str, Dict[str, JsonSerializable]]:
         return pickle.loads(pickle.dumps(self._defaults, -1))
 
     @classmethod
@@ -165,86 +178,161 @@ class Config:
             None, cog_name="Core", identifier=0, force_registration=force_registration
         )
 
-    def __getattr__(self, item: str) -> Union[Group, Value]:
-        """Same as `group.__getattr__` except for global data.
+    @model_group(ConfigCategory.GUILD)
+    def guild(self, guild: Union[discord.Guild, int, str]) -> Sequence[str]:
+        """Returns a `Group` for the given guild.
 
         Parameters
         ----------
-        item : str
-            The attribute you want to get.
+        guild : discord.Guild
+            A guild object.
 
         Returns
         -------
-        `Group` or `Value`
-            The value for the attribute you want to retrieve
+        Group
+            The guild's Group object.
 
-        Raises
-        ------
-        AttributeError
-            If there is no global attribute by the given name and
-            `force_registration` is set to :code:`True`.
         """
-        global_group = self._get_base_group(ConfigCategory.GLOBAL)
-        return getattr(global_group, item)
+        return self.__default_primary_key_getter(guild)
 
-    @staticmethod
-    def _get_defaults_dict(key: str, value) -> dict:
+    @model_group(ConfigCategory.CHANNEL)
+    def channel(self, channel: Union[discord.abc.GuildChannel, int, str]) -> Sequence[str]:
+        """Returns a `Group` for the given channel.
+
+        Parameters
+        ----------
+        channel : Union[discord.abc.GuildChannel, int, str]
+            A channel object or ID.
+
+        Returns
+        -------
+        Group
+            The channel's Group object.
+
         """
-        Since we're allowing nested config stuff now, not storing the
-        _defaults as a flat dict sounds like a good idea. May turn out
-        to be an awful one but we'll see.
+        return self.__default_primary_key_getter(channel)
+
+    @model_group(ConfigCategory.ROLE)
+    def role(self, role: Union[discord.Role, int, str]) -> Sequence[str]:
+        """Returns a `Group` for the given role.
+
+        Parameters
+        ----------
+        role : Union[discord.Role, int, str]
+            A role object or ID.
+
+        Returns
+        -------
+        Group
+            The role's Group object.
+
         """
-        ret = {}
-        partial = ret
-        splitted = key.split("__")
-        for i, k in enumerate(splitted, start=1):
-            if not k.isidentifier():
-                raise RuntimeError("'{}' is an invalid config key.".format(k))
-            if i == len(splitted):
-                partial[k] = value
-            else:
-                partial[k] = {}
-                partial = partial[k]
-        return ret
+        return self.__default_primary_key_getter(role)
 
-    @staticmethod
-    def _update_defaults(
-        to_add: Dict[str, JsonSerializable], _partial: Dict[str, JsonSerializable]
-    ):
+    @model_group(ConfigCategory.USER)
+    def user(self, user: Union[discord.abc.User, int, str]) -> Sequence[str]:
+        """Returns a `Group` for the given user.
+
+        Parameters
+        ----------
+        user : Union[discord.abc.User, int, str]
+            A user object or ID.
+
+        Returns
+        -------
+        Group
+            The user's Group object.
+
         """
-        This tries to update the _defaults dictionary with the nested
-        partial dict generated by _get_defaults_dict. This WILL
-        throw an error if you try to have both a value and a group
-        registered under the same name.
+        return self.__default_primary_key_getter(user)
+
+    @model_group(ConfigCategory.MEMBER)
+    def member(
+        self, member: Union[discord.Member, Tuple[Union[int, str], Union[int, str]]]
+    ) -> Sequence[str]:
+        """Returns a `Group` for the given member.
+
+        Parameters
+        ----------
+        member : Union[discord.Member, Sequence[Union[int, str]]]
+            A member object or sequence (guild_id, user_id).
+
+        Returns
+        -------
+        Group
+            The member's Group object.
+
         """
-        for k, v in to_add.items():
-            val_is_dict = isinstance(v, dict)
-            if k in _partial:
-                existing_is_dict = isinstance(_partial[k], dict)
-                if val_is_dict != existing_is_dict:
-                    # != is XOR
-                    raise KeyError("You cannot register a Group and a Value under the same name.")
-                if val_is_dict:
-                    Config._update_defaults(v, _partial=_partial[k])
-                else:
-                    _partial[k] = v
-            else:
-                _partial[k] = v
+        try:
+            guild_id = member.guild.id
+            user_id = member.id
+        except AttributeError:
+            guild_id, user_id = member
 
-    def _register_default(self, category: Union[ConfigCategory, str], **kwargs: JsonSerializable):
-        category = str(category)
-        if category not in self._defaults:
-            self._defaults[category] = {}
+        return str(guild_id), str(user_id)
 
-        data = pickle.loads(pickle.dumps(kwargs, -1))
+    def custom(self, group_identifier: str, *identifiers: Any) -> Group:
+        """Returns a `Group` for the given custom group.
 
-        for k, v in data.items():
-            to_add = self._get_defaults_dict(k, v)
-            self._update_defaults(to_add, self._defaults[category])
+        Parameters
+        ----------
+        group_identifier : str
+            Used to identify the custom group.
+        identifiers : str
+            The attributes necessary to uniquely identify an entry in
+            the custom group. These are casted to `str` for you.
 
-    def register_global(self, **kwargs):
-        """Register default values for attributes you wish to store in `Config`
-        at a global level.
+        Returns
+        -------
+        Group
+            The custom group's Group object.
+
+        """
+        if identifiers:
+            if group_identifier not in self.custom_groups:
+                raise ValueError(f"Group identifier not registered: {group_identifier}")
+            return Group(
+                IdentifierData(
+                    cog_name=self.cog_name,
+                    uuid=self.unique_identifier,
+                    category=str(group_identifier),
+                    primary_key=tuple(map(str, identifiers)),
+                    identifiers=(),
+                    primary_key_len=self.custom_groups[group_identifier],
+                    is_custom=True,
+                ),
+                config=self,
+            )
+        else:
+            # CustomGroup supports `register(N, **defaults)`
+            if group_identifier not in self.custom_groups:
+                return cast(CustomGroup, _UnregisteredCustomGroup(
+                    IdentifierData(
+                        cog_name=self.cog_name,
+                        uuid=self.unique_identifier,
+                        category=str(group_identifier),
+                        primary_key=(),
+                        identifiers=(),
+                        primary_key_len=0,
+                        is_custom=True,
+                    ),
+                    config=self,
+                ))
+            return CustomGroup(
+                IdentifierData(
+                    cog_name=self.cog_name,
+                    uuid=self.unique_identifier,
+                    category=str(group_identifier),
+                    primary_key=(),
+                    identifiers=(),
+                    primary_key_len=self.custom_groups.get(group_identifier),
+                    is_custom=True,
+                ),
+                config=self,
+            )
+
+    def register_global(self, **defaults: JsonSerializable) -> None:
+        """Register default values for the global scope.
 
         Examples
         --------
@@ -283,30 +371,34 @@ class Config:
             )
 
         """
-        self._register_default(ConfigCategory.GLOBAL, **kwargs)
+        self._register_default(ConfigCategory.GLOBAL, **defaults)
 
+    @discord.utils.deprecated("Config.guild.register()")
     def register_guild(self, **kwargs):
         """Register default values on a per-guild level.
 
         See `register_global` for more details.
         """
-        self._register_default(ConfigCategory.GUILD, **kwargs)
+        self.guild.register(**kwargs)
 
+    @discord.utils.deprecated("Config.channel.register()")
     def register_channel(self, **kwargs):
         """Register default values on a per-channel level.
 
         See `register_global` for more details.
         """
         # We may need to add a voice channel category later
-        self._register_default(ConfigCategory.CHANNEL, **kwargs)
+        self.channel.register(**kwargs)
 
+    @discord.utils.deprecated("Config.role.register()")
     def register_role(self, **kwargs):
         """Registers default values on a per-role level.
 
         See `register_global` for more details.
         """
-        self._register_default(ConfigCategory.ROLE, **kwargs)
+        self.role.register(**kwargs)
 
+    @discord.utils.deprecated("Config.user.register()")
     def register_user(self, **kwargs):
         """Registers default values on a per-user level.
 
@@ -314,8 +406,9 @@ class Config:
 
         See `register_global` for more details.
         """
-        self._register_default(ConfigCategory.USER, **kwargs)
+        self.user.register(**kwargs)
 
+    @discord.utils.deprecated("Config.member.register()")
     def register_member(self, **kwargs):
         """Registers default values on a per-member level.
 
@@ -323,8 +416,9 @@ class Config:
 
         See `register_global` for more details.
         """
-        self._register_default(ConfigCategory.MEMBER, **kwargs)
+        self.member.register(**kwargs)
 
+    @discord.utils.deprecated("Config.custom(category).register()")
     def register_custom(self, group_identifier: str, **kwargs):
         """Registers default values for a custom group.
 
@@ -332,164 +426,16 @@ class Config:
         """
         self._register_default(group_identifier, **kwargs)
 
+    @discord.utils.deprecated("Config.custom(category).register()")
     def init_custom(self, group_identifier: str, identifier_count: int):
-        """
-        Initializes a custom group for usage. This method must be called first!
+        """Initializes a custom group for usage.
+
+        This method must be called first!
         """
         if group_identifier in self.custom_groups:
             raise ValueError(f"Group identifier already registered: {group_identifier}")
 
         self.custom_groups[group_identifier] = identifier_count
-
-    def _get_base_group(self, category: Union[ConfigCategory, str], *primary_keys: str) -> Group:
-        pkey_len, is_custom = ConfigCategory.get_pkey_info(category, self.custom_groups)
-        category = str(category)
-        identifier_data = IdentifierData(
-            cog_name=self.cog_name,
-            uuid=self.unique_identifier,
-            category=category,
-            primary_key=primary_keys,
-            identifiers=(),
-            primary_key_len=pkey_len,
-            is_custom=is_custom,
-        )
-        return Group(identifier_data=identifier_data, config=self)
-
-    @model_group(ConfigCategory.GUILD)
-    def guild(self, guild: Union[discord.Guild, int, str]) -> Sequence[str]:
-        """Returns a `Group` for the given guild.
-
-        Parameters
-        ----------
-        guild : discord.Guild
-            A guild object.
-
-        Returns
-        -------
-        ModelGroup
-            The guild's Group object.
-
-        """
-        try:
-            _id = guild.id
-        except AttributeError:
-            _id = guild
-
-        return (str(_id),)
-
-    @model_group(ConfigCategory.CHANNEL)
-    def channel(self, channel: Union[discord.abc.GuildChannel, int, str]) -> Sequence[str]:
-        """Returns a `Group` for the given channel.
-
-        Parameters
-        ----------
-        channel : Union[discord.abc.GuildChannel, int, str]
-            A channel object or ID.
-
-        Returns
-        -------
-        ModelGroup
-            The channel's Group object.
-
-        """
-        try:
-            # noinspection PyUnresolvedReferences
-            _id = channel.id
-        except AttributeError:
-            _id = channel
-
-        return (str(_id),)
-
-    @model_group(ConfigCategory.ROLE)
-    def role(self, role: Union[discord.Role, int, str]) -> Sequence[str]:
-        """Returns a `Group` for the given role.
-
-        Parameters
-        ----------
-        role : Union[discord.Role, int, str]
-            A role object or ID.
-
-        Returns
-        -------
-        ModelGroup
-            The role's Group object.
-
-        """
-        try:
-            _id = role.id
-        except AttributeError:
-            _id = role
-
-        return (str(_id),)
-
-    @model_group(ConfigCategory.USER)
-    def user(self, user: Union[discord.abc.User, int, str]) -> Sequence[str]:
-        """Returns a `Group` for the given user.
-
-        Parameters
-        ----------
-        user : Union[discord.abc.User, int, str]
-            A user object or ID.
-
-        Returns
-        -------
-        ModelGroup
-            The user's Group object.
-
-        """
-        try:
-            # noinspection PyUnresolvedReferences
-            _id = user.id
-        except AttributeError:
-            _id = user
-
-        return (str(_id),)
-
-    @model_group(ConfigCategory.MEMBER)
-    def member(
-        self, member: Union[discord.Member, Tuple[Union[int, str], Union[int, str]]]
-    ) -> Sequence[str]:
-        """Returns a `Group` for the given member.
-
-        Parameters
-        ----------
-        member : Union[discord.Member, Sequence[Union[int, str]]]
-            A member object or sequence (guild_id, user_id).
-
-        Returns
-        -------
-        ModelGroup
-            The member's Group object.
-
-        """
-        try:
-            guild_id = member.guild.id
-            user_id = member.id
-        except AttributeError:
-            guild_id, user_id = member
-
-        return str(guild_id), str(user_id)
-
-    def custom(self, group_identifier: str, *identifiers: Any) -> Group:
-        """Returns a `Group` for the given custom group.
-
-        Parameters
-        ----------
-        group_identifier : str
-            Used to identify the custom group.
-        identifiers : str
-            The attributes necessary to uniquely identify an entry in the
-            custom group. These are casted to `str` for you.
-
-        Returns
-        -------
-        `Group <redbot.core.config.Group>`
-            The custom group's Group object.
-
-        """
-        if group_identifier not in self.custom_groups:
-            raise ValueError(f"Group identifier not initialized: {group_identifier}")
-        return self._get_base_group(str(group_identifier), *map(str, identifiers))
 
     @discord.utils.deprecated("Config.guild.all()")
     def all_guilds(self) -> ValueContextManager[Dict[str, JsonSerializable]]:
@@ -500,8 +446,8 @@ class Config:
 
         Note
         ----
-        The return value of this method will include registered defaults for
-        values which have not yet been set.
+        The return value of this method will include registered defaults
+        for values which have not yet been set.
 
         Returns
         -------
@@ -521,8 +467,8 @@ class Config:
 
         Note
         ----
-        The return value of this method will include registered defaults for
-        values which have not yet been set.
+        The return value of this method will include registered defaults
+        for values which have not yet been set.
 
         Returns
         -------
@@ -542,8 +488,8 @@ class Config:
 
         Note
         ----
-        The return value of this method will include registered defaults for
-        values which have not yet been set.
+        The return value of this method will include registered defaults
+        for values which have not yet been set.
 
         Returns
         -------
@@ -563,8 +509,8 @@ class Config:
 
         Note
         ----
-        The return value of this method will include registered defaults for
-        values which have not yet been set.
+        The return value of this method will include registered defaults
+        for values which have not yet been set.
 
         Returns
         -------
@@ -587,18 +533,19 @@ class Config:
         :code:`GUILD_ID -> MEMBER_ID -> data`.
 
         .. deprecated:: 3.2
-            Use ``Config.member.all()`` or ``Config.member[guild.id].all()`` instead.
+            Use ``Config.member.all()`` or
+            ``Config.member[guild.id].all()`` instead.
 
         Note
         ----
-        The return value of this method will include registered defaults for
-        values which have not yet been set.
+        The return value of this method will include registered defaults
+        for values which have not yet been set.
 
         Parameters
         ----------
         guild : `discord.Guild`, optional
-            The guild to get the member data from. Can be omitted if data
-            from every member of all guilds is desired.
+            The guild to get the member data from. Can be omitted if
+            data from every member of all guilds is desired.
 
         Returns
         -------
@@ -689,16 +636,18 @@ class Config:
     async def clear_all_members(self, guild: discord.Guild = None):
         """Clear all member data.
 
-        This resets all specified member data to its registered defaults.
+        This resets all specified member data to its registered
+        defaults.
 
         .. deprecated:: 3.2
-            Use ``Config.member.clear()`` or ``Config.member[guild.id].clear()`` instead.
+            Use ``Config.member.clear()`` or
+            ``Config.member[guild.id].clear()`` instead.
 
         Parameters
         ----------
-        guild : `discord.Guild`, optional
-            The guild to clear member data from. Omit to clear member data from
-            all guilds.
+        guild : Optional[discord.Guild]
+            The guild to clear member data from. Omit to clear member
+            data from all guilds.
 
         """
         if guild is not None:
@@ -725,99 +674,73 @@ class Config:
         """
         await self.custom(category).clear()
 
-    @discord.utils.deprecated("Config.guild.get_lock()")
-    def get_guilds_lock(self) -> asyncio.Lock:
-        """Get a lock for all guild data.
+    def _register_default(
+        self, category: Union[ConfigCategory, str], **kwargs: JsonSerializable
+    ) -> None:
+        category = str(category)
+        defaults_dict = self._defaults.setdefault(category, {})
 
-        .. deprecated:: 3.2
-            Use ``Config.guild.get_lock()`` instead.
+        data = pickle.loads(pickle.dumps(kwargs, -1))
 
-        Returns
-        -------
-        asyncio.Lock
+        for k, v in data.items():
+            to_add = self.__get_defaults_dict(k, v)
+            self.__update_defaults(to_add, defaults_dict)
+
+    @staticmethod
+    def __default_primary_key_getter(
+        model: Union[discord.abc.Snowflake, str, int]
+    ) -> Sequence[str]:
+        try:
+            # noinspection PyUnresolvedReferences
+            _id = model.id
+        except AttributeError:
+            _id = model
+
+        return (str(_id),)
+
+    @staticmethod
+    def __get_defaults_dict(key: str, value) -> dict:
         """
-        return self.guild.get_lock()
-
-    @discord.utils.deprecated("Config.channel.get_lock()")
-    def get_channels_lock(self) -> asyncio.Lock:
-        """Get a lock for all channel data.
-
-        .. deprecated:: 3.2
-            Use ``Config.channel.get_lock()`` instead.
-
-        Returns
-        -------
-        asyncio.Lock
+        Since we're allowing nested config stuff now, not storing the
+        _defaults as a flat dict sounds like a good idea. May turn out
+        to be an awful one but we'll see.
         """
-        return self.channel.get_lock()
+        ret = {}
+        partial = ret
+        splitted = key.split("__")
+        for i, k in enumerate(splitted, start=1):
+            if not k.isidentifier():
+                raise RuntimeError("'{}' is an invalid config key.".format(k))
+            if i == len(splitted):
+                partial[k] = value
+            else:
+                partial[k] = {}
+                partial = partial[k]
+        return ret
 
-    @discord.utils.deprecated("Config.role.get_lock()")
-    def get_roles_lock(self) -> asyncio.Lock:
-        """Get a lock for all role data.
-
-        .. deprecated:: 3.2
-            Use ``Config.role.get_lock()`` instead.
-
-        Returns
-        -------
-        asyncio.Lock
+    @staticmethod
+    def __update_defaults(
+        to_add: Dict[str, JsonSerializable], _partial: Dict[str, JsonSerializable]
+    ) -> None:
         """
-        return self.roles.get_lock()
-
-    @discord.utils.deprecated("Config.user.get_lock()")
-    def get_users_lock(self) -> asyncio.Lock:
-        """Get a lock for all user data.
-
-        .. deprecated:: 3.2
-            Use ``Config.user.get_lock()`` instead.
-
-        Returns
-        -------
-        asyncio.Lock
+        This tries to update the _defaults dictionary with the nested
+        partial dict generated by _get_defaults_dict. This WILL
+        throw an error if you try to have both a value and a group
+        registered under the same name.
         """
-        return self.user.get_lock()
-
-    @discord.utils.deprecated("Config.member.get_lock() or Config.member[guild.id].get_lock()")
-    def get_members_lock(self, guild: Optional[discord.Guild] = None) -> asyncio.Lock:
-        """Get a lock for all member data.
-
-        .. deprecated:: 3.2
-            Use ``Config.member.get_lock()`` or
-            ``Config.member[guild.id].get_lock()`` instead.
-
-        Parameters
-        ----------
-        guild : Optional[discord.Guild]
-            The guild containing the members whose data you want to
-            lock. Omit to lock all data for all members in all guilds.
-
-        Returns
-        -------
-        asyncio.Lock
-        """
-        if guild is not None:
-            group = self.member[guild.id]
-        else:
-            group = self.member
-        return group.get_lock()
-
-    @discord.utils.deprecated("Config.custom(category).get_lock()")
-    def get_custom_lock(self, category: str) -> asyncio.Lock:
-        """Get a lock for all data in a custom scope.
-
-        .. deprecated:: 3.2
-            Use ``Config.custom(category).get_lock()`` instead.
-
-        Parameters
-        ----------
-        category : Union[str, ConfigCategory]
-            The group identifier for the custom scope you want to lock.
-
-        Returns
-        -------
-        asyncio.Lock
-        """
-        return self.custom(category).get_lock()
+        for k, v in to_add.items():
+            val_is_dict = isinstance(v, dict)
+            if k in _partial:
+                existing_is_dict = isinstance(_partial[k], dict)
+                if val_is_dict != existing_is_dict:
+                    # != is XOR
+                    raise KeyError("You cannot register a Group and a Value under the same name.")
+                if val_is_dict:
+                    Config.__update_defaults(v, _partial=_partial[k])
+                else:
+                    _partial[k] = v
+            else:
+                _partial[k] = v
 
 
 def get_latest_confs() -> Tuple["Config"]:

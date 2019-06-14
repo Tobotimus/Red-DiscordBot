@@ -48,9 +48,9 @@ def _init():
     global _conf
     _conf = Config.get_conf(None, 384734293238749, cog_name="Bank", force_registration=True)
     _conf.register_global(**_DEFAULT_GLOBAL)
-    _conf.register_guild(**_DEFAULT_GUILD)
-    _conf.register_member(**_DEFAULT_MEMBER)
-    _conf.register_user(**_DEFAULT_USER)
+    _conf.guild.register(**_DEFAULT_GUILD)
+    _conf.member.register(**_DEFAULT_MEMBER)
+    _conf.user.register(**_DEFAULT_USER)
 
 
 class Account:

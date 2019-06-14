@@ -35,7 +35,7 @@ class Trivia(commands.Cog):
         self.trivia_sessions = []
         self.conf = Config.get_conf(self, identifier=UNIQUE_ID, force_registration=True)
 
-        self.conf.register_guild(
+        self.conf.guild.register(
             max_score=10,
             timeout=120.0,
             delay=15.0,
@@ -45,7 +45,7 @@ class Trivia(commands.Cog):
             allow_override=True,
         )
 
-        self.conf.register_member(wins=0, games=0, total_score=0)
+        self.conf.member.register(wins=0, games=0, total_score=0)
 
     @commands.group()
     @commands.guild_only()

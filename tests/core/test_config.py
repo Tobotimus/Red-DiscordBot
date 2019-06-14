@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
 
 
@@ -11,7 +11,7 @@ from redbot.core.errors import StoredTypeError
 @pytest.mark.asyncio
 async def test_config_register_global(config):
     config.register_global(enabled=False)
-    assert config.defaults["GLOBAL"]["enabled"] is False
+    assert config.all_defaults[ConfigCategory.GLOBAL.value]["enabled"] is False
     assert await config.enabled() is False
 
 
@@ -22,10 +22,10 @@ def test_config_register_global_badvalues(config):
 
 @pytest.mark.asyncio
 async def test_config_register_guild(config, empty_guild):
-    config.register_guild(enabled=False, some_list=[], some_dict={})
-    assert config.defaults[ConfigCategory.GUILD.value]["enabled"] is False
-    assert config.defaults[ConfigCategory.GUILD.value]["some_list"] == []
-    assert config.defaults[ConfigCategory.GUILD.value]["some_dict"] == {}
+    config.guild.register(enabled=False, some_list=[], some_dict={})
+    assert config.all_defaults[ConfigCategory.GUILD.value]["enabled"] is False
+    assert config.all_defaults[ConfigCategory.GUILD.value]["some_list"] == []
+    assert config.all_defaults[ConfigCategory.GUILD.value]["some_dict"] == {}
 
     assert await config.guild(empty_guild).enabled() is False
     assert await config.guild(empty_guild).some_list() == []
@@ -34,29 +34,29 @@ async def test_config_register_guild(config, empty_guild):
 
 @pytest.mark.asyncio
 async def test_config_register_channel(config, empty_channel):
-    config.register_channel(enabled=False)
-    assert config.defaults[ConfigCategory.CHANNEL.value]["enabled"] is False
+    config.channel.register(enabled=False)
+    assert config.all_defaults[ConfigCategory.CHANNEL.value]["enabled"] is False
     assert await config.channel(empty_channel).enabled() is False
 
 
 @pytest.mark.asyncio
 async def test_config_register_role(config, empty_role):
-    config.register_role(enabled=False)
-    assert config.defaults[ConfigCategory.ROLE.value]["enabled"] is False
+    config.role.register(enabled=False)
+    assert config.all_defaults[ConfigCategory.ROLE.value]["enabled"] is False
     assert await config.role(empty_role).enabled() is False
 
 
 @pytest.mark.asyncio
 async def test_config_register_member(config, empty_member):
-    config.register_member(some_number=-1)
-    assert config.defaults[ConfigCategory.MEMBER.value]["some_number"] == -1
+    config.member.register(some_number=-1)
+    assert config.all_defaults[ConfigCategory.MEMBER.value]["some_number"] == -1
     assert await config.member(empty_member).some_number() == -1
 
 
 @pytest.mark.asyncio
 async def test_config_register_user(config, empty_user):
-    config.register_user(some_value=None)
-    assert config.defaults[ConfigCategory.USER.value]["some_value"] is None
+    config.user.register(some_value=None)
+    assert config.all_defaults[ConfigCategory.USER.value]["some_value"] is None
     assert await config.user(empty_user).some_value() is None
 
 
@@ -279,7 +279,7 @@ async def test_global_clear(config):
 
 @pytest.mark.asyncio
 async def test_member_clear(config, member_factory):
-    config.register_member(foo=True)
+    config.member.register(foo=True)
 
     m1 = member_factory.get()
     await config.member(m1).foo.set(False)
@@ -333,7 +333,7 @@ async def test_clear_value(config):
 # Get All testing
 @pytest.mark.asyncio
 async def test_user_get_all_from_kind(config, user_factory):
-    config.register_user(foo=False, bar=True)
+    config.user.register(foo=False, bar=True)
     for _ in range(5):
         user = user_factory.get()
         await config.user(user).foo.set(True)
@@ -350,7 +350,7 @@ async def test_user_get_all_from_kind(config, user_factory):
 @pytest.mark.asyncio
 async def test_user_getalldata(config, user_factory):
     user = user_factory.get()
-    config.register_user(foo=True, bar=False)
+    config.user.register(foo=True, bar=False)
     await config.user(user).foo.set(False)
 
     all_data = await config.user(user).all()
@@ -403,7 +403,7 @@ async def test_value_ctxmgr_immutable(config):
 
 @pytest.mark.asyncio
 async def test_ctxmgr_no_shared_default(config, member_factory):
-    config.register_member(foo=[])
+    config.member.register(foo=[])
     m1 = member_factory.get()
     m2 = member_factory.get()
 
@@ -411,6 +411,11 @@ async def test_ctxmgr_no_shared_default(config, member_factory):
         foo.append(1)
 
     assert 1 not in await config.member(m2).foo()
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 @pytest.mark.asyncio

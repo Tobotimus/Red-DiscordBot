@@ -80,12 +80,12 @@ After we've gotten that, we need to register default values:
                 "baz": 1234567890
             }
             self.config.register_global(**default_global)
-            self.config.register_guild(**default_guild)
+            self.config.guild.register(**default_guild)
 
 As seen in the example above, we can set up our defaults in dicts and then use those in
 the appropriate :code:`register` function. As seen above, there's :py:meth:`Config.register_global`
-and :py:meth:`Config.register_guild`, but there's also :py:meth:`Config.register_member`,
-:py:meth:`Config.register_role`, :py:meth:`Config.register_user`, and :py:meth:`Config.register_channel`.
+and :py:meth:`Config.guild.register`, but there's also :py:meth:`Config.member.register`,
+:py:meth:`Config.role.register`, :py:meth:`Config.user.register`, and :py:meth:`Config.channel.register`.
 Note that :code:`member` stores based on guild id AND the user's id.
 
 Once we have our defaults registered and we have the object, we can now use those values
@@ -199,7 +199,7 @@ the built-in Economy credits::
                 cat=100,
                 bird=50
             )
-            self.conf.register_user(
+            self.conf.user.register(
                 pets={}
             )
 
@@ -388,13 +388,26 @@ Config
 
 .. autoclass:: Config
     :members:
+    :member-order: bysource
 
 Group
 ^^^^^
 
 .. autoclass:: Group
     :members:
-    :special-members:
+    :member-order: bysource
+
+    .. _Group.__getattr__:
+    .. _Group.__getitem__:
+
+    .. describe:: group[value_name] || group.value_name
+
+        Get the ``value_name`` :class:`.Value` of :class:`.Group`
+        ``group``.
+
+        :raises:
+            :exc:`AttributeError` - If :attr:`Config.force_registration` is ``True`` and
+            ``value_name`` is not a registered default.
 
 Value
 ^^^^^
@@ -402,6 +415,7 @@ Value
 .. autoclass:: Value
     :members:
     :special-members: __call__
+    :member-order: bysource
 
 
 ****************
@@ -409,19 +423,29 @@ Driver Reference
 ****************
 
 .. automodule:: redbot.core.config.drivers
-    :members:
+    :members: BackendType, get_driver, get_driver_class
+    :member-order: bysource
 
 Base Driver
 ^^^^^^^^^^^
 .. autoclass:: redbot.core.config.drivers.BaseDriver
     :members:
+    :member-order: bysource
 
 JSON Driver
 ^^^^^^^^^^^
-.. autoclass:: redbot.core.config.drivers.BaseDriver
+.. autoclass:: redbot.core.config.drivers.JsonDriver
     :members:
+    :member-order: bysource
 
-Mongo Driver
-^^^^^^^^^^^^
-.. autoclass:: redbot.core.config.drivers.BaseDriver
+MongoDB Driver
+^^^^^^^^^^^^^^
+.. autoclass:: redbot.core.config.drivers.MongoDriver
     :members:
+    :member-order: bysource
+
+PostgreSQL Driver
+^^^^^^^^^^^^^^^^^
+.. autoclass:: redbot.core.config.drivers.PostgresDriver
+    :members:
+    :member-order: bysource

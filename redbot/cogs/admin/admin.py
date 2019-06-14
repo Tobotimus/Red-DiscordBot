@@ -58,7 +58,7 @@ class Admin(commands.Cog):
 
         self.conf.register_global(serverlocked=False)
 
-        self.conf.register_guild(
+        self.conf.guild.register(
             announce_ignore=False,
             announce_channel=None,  # Integer ID
             selfroles=[],  # List of integer ID's

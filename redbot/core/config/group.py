@@ -12,7 +12,7 @@ from typing import (
     TypeVar,
     Iterable,
     Any,
-)
+    Awaitable, NoReturn)
 
 import discord
 
@@ -24,17 +24,48 @@ from .value import Value, ValueContextManager, MutableValue
 if TYPE_CHECKING:
     from .config import Config
 
-__all__ = ["Group", "ModelGroup", "model_group"]
+__all__ = ["Group", "CustomGroup", "ModelGroup", "model_group"]
 
 _T = TypeVar("_T")
 
 
 class Group(MutableValue):
-    """
-    Represents a group of data, composed of more `Group` or `Value` objects.
+    """Represents an *object* or *document*, i.e. a mapping from
+    identifiers to values.
 
-    Inherits from `Value` which means that all of the attributes and methods
-    available in `Value` are also available when working with a `Group` object.
+    Any value which whose registered default is a `dict` will be of this
+    type. On top of this, any value which is the parent of another value
+    must also be of this type.
+
+    Examples
+    --------
+    .. testsetup:: group_isinstance_example
+
+        from types import SimpleNamespace
+        from typing import cast
+        import discord
+        from redbot.core.config import Config, Group, drivers
+        config = Config(
+            "DocTest", "0", cast(drivers.BaseDriver, None)
+        )
+        a_guild = cast(discord.Guild, SimpleNamespace(id=1))
+        a_member = cast(discord.Member, SimpleNamespace(guild=a_guild, id=2))
+
+    .. doctest:: group_isinstance_example
+
+        >>> config.register_global(my_group=dict(value_1=1, value_2=2))
+        >>> config.member.register(value_3=3)
+        >>> isinstance(config.my_group, Group)
+        True
+        >>> isinstance(config.my_group.value_1, Group)
+        False
+        >>> isinstance(config.member, Group)
+        True
+        >>> isinstance(config.member[a_guild.id], Group)
+        True
+        >>> isinstance(config.member(a_member), Group)
+        True
+
     """
 
     @property
@@ -99,7 +130,7 @@ class Group(MutableValue):
         attribute access.
 
         .. deprecated:: 3.2
-            Use square-bracket syntax (`Group.__getitem__`) instead.
+            Use square-bracket syntax instead.
 
         Example
         -------
@@ -314,7 +345,8 @@ class Group(MutableValue):
             return dict
 
         try:
-            inner = self._config.defaults[id_data.category]
+            # noinspection PyProtectedMember
+            inner = self._config._defaults[id_data.category]
             for key in id_data.identifiers:
                 inner = inner[key]
         except KeyError:
@@ -350,7 +382,68 @@ class Group(MutableValue):
 _VALUE_CLASS_MAPPING = defaultdict(lambda: Value, {dict: Group, list: Array})
 
 
-class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Group], Group):
+class CustomGroup(Group):
+
+    def register(self, __primary_key_length: int, **defaults: JsonSerializable) -> None:
+        if __primary_key_length != self._config.custom_groups[self.identifier_data.category]:
+            raise ValueError("Cannot change primary key length once set!")
+        else:
+            # noinspection PyProtectedMember
+            self._config._register_default(self.identifier_data.category, **defaults)
+
+
+class _UnregisteredCustomGroup:
+
+    def __init__(self, identifier_data: IdentifierData, config: "Config") -> None:
+        self.identifier_data = identifier_data
+        self._config = config
+        self.__actual_group: Optional[CustomGroup] = None
+
+    def __getattr__(self, item: str):
+        self.__check_registered()
+        # This is a slightly hacky way to make custom groups behave as expected on first use,
+        # just to handle the rare case where someone does this:
+        #   custom_group = config.custom(category)
+        #   custom_group.register(1, **defaults)
+        #   await custom_group.all()
+        return getattr(self.__actual_group, item)
+
+    def __getitem__(self, item: str):
+        self.__check_registered()
+        return self.__actual_group.__getitem__(item)
+
+    def __await__(self):
+        self.__check_registered()
+        return self.__actual_group.__await__()
+
+    def __aenter__(self):
+        self.__check_registered()
+        return self.__actual_group.__aenter__()
+
+    def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.__check_registered()
+        return self.__actual_group.__aexit__(exc_type, exc_val, exc_tb)
+
+    def __call__(self, *args, **kwargs):
+        self.__check_registered()
+        return self.__actual_group.__call__(*args, **kwargs)
+
+    def register(self, __num_primary_keys: int, **defaults: JsonSerializable) -> None:
+        if self.__actual_group is None:
+            self._config.custom_groups[self.identifier_data.category] = __num_primary_keys
+            # noinspection PyProtectedMember
+            self._config._register_default(self.identifier_data.category, **defaults)
+            self.__actual_group = self._config.custom(self.identifier_data.category)
+            self.identifier_data = self.__actual_group.identifier_data
+        else:
+            self.__actual_group.register(__num_primary_keys, **defaults)
+
+    def __check_registered(self):
+        if self.__actual_group is None:
+            raise RuntimeError(f"Custom group not registered: {self.identifier_data.category}")
+
+
+class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Group], CustomGroup):
     def __init__(
         self,
         primary_key_getter: Callable[..., Sequence[str]],
@@ -370,6 +463,10 @@ class ModelGroup(Callable[[Union[_T, str, int, Sequence[Union[str, int]]]], Grou
         new_identifier_data = self.identifier_data.add_primary_key(*primary_key)
 
         return Group(identifier_data=new_identifier_data, config=self._config)
+
+    def register(self, **defaults: JsonSerializable) -> None:
+        # noinspection PyProtectedMember
+        self._config._register_default(self.identifier_data.category, **defaults)
 
 
 class _ModelGroupDescriptor:

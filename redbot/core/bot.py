@@ -60,7 +60,7 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):
             api_tokens={},
         )
 
-        self.db.register_guild(
+        self.db.guild.register(
             prefix=[],
             whitelist=[],
             blacklist=[],
@@ -73,10 +73,9 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):
             autoimmune_ids=[],
         )
 
-        self.db.register_user(embeds=None)
+        self.db.user.register(embeds=None)
 
-        self.db.init_custom(CUSTOM_GROUPS, 2)
-        self.db.register_custom(CUSTOM_GROUPS)
+        self.db.custom(CUSTOM_GROUPS).register(2)
 
         async def prefix_manager(bot, message):
             if not cli_flags.prefix:

@@ -192,7 +192,7 @@ class CustomCommands(commands.Cog):
         self.bot = bot
         self.key = 414589031223512
         self.config = Config.get_conf(self, self.key)
-        self.config.register_guild(commands={})
+        self.config.guild.register(commands={})
         self.commandobj = CommandObj(config=self.config, bot=self.bot)
         self.cooldowns = {}
 

@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import pickle
+import types
 from typing import (
     Awaitable,
     AsyncContextManager,
@@ -12,6 +13,8 @@ from typing import (
     Dict,
     List,
     Callable,
+    Generator,
+    Type,
 )
 
 from .identifier_data import IdentifierData
@@ -58,7 +61,9 @@ class ValueContextManager(Awaitable[_T], AsyncContextManager[_T]):
     def __await__(self):
         return self.__getter().__await__()
 
-    async def __aenter__(self):
+    async def __aenter__(
+        self
+    ) -> Union[List[JsonSerializable], Dict[str, JsonSerializable]]:
         if self.__acquire_lock is True:
             await self.__lock.acquire()
         self.__raw_value = await self.__getter()
@@ -71,7 +76,12 @@ class ValueContextManager(Awaitable[_T], AsyncContextManager[_T]):
         self.__original_value = pickle.loads(pickle.dumps(self.__raw_value, -1))
         return self.__raw_value
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> None:
         try:
             if isinstance(self.__raw_value, dict):
                 raw_value = str_key_dict(self.__raw_value)
@@ -103,7 +113,8 @@ class Value:
         """The default value for the data element that `identifiers`
         points at.
         """
-        inner = self._config.defaults
+        # noinspection PyProtectedMember
+        inner = self._config._defaults
         try:
             inner = inner[self.identifier_data.category]
             for key in self.identifier_data.identifiers:
@@ -113,12 +124,11 @@ class Value:
         else:
             return inner
 
+    def __await__(self) -> Generator[Any, None, JsonSerializable]:
+        return self._get().__await__()
+
     def __call__(self, default: Any = ..., **kwargs) -> Awaitable[JsonSerializable]:
         """Get the literal value of this data element.
-
-        Each `Value` object is created by the `Group.__getattr__` method. The
-        "real" data of the `Value` object is accessed by this method. It is a
-        replacement for a :code:`get()` method.
 
         The return value of this method can also be used as an asynchronous
         context manager, i.e. with :code:`async with` syntax. This can only be
@@ -309,18 +319,30 @@ class Value:
 
 
 class MutableValue(Value):
+    def __init__(self, identifier_data: IdentifierData, config: "Config") -> None:
+        super().__init__(identifier_data, config)
+        self.__ctxmgr: Optional[ValueContextManager] = None
+
     @property
     def default(self) -> Union[List[JsonSerializable], Dict[str, JsonSerializable]]:
         return pickle.loads(pickle.dumps(super().default))
+
+    def __aenter__(self) -> Awaitable[Union[List[JsonSerializable], Dict[str, JsonSerializable]]]:
+        self.__ctxmgr = self()
+        return self.__ctxmgr.__aenter__()
+
+    def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> Awaitable[None]:
+        return self.__ctxmgr.__aexit__(exc_type, exc_val, exc_tb)
 
     def __call__(
         self, default: Any = ..., **kwargs
     ) -> ValueContextManager[Union[List[JsonSerializable], Dict[str, JsonSerializable]]]:
         """Get the literal value of this data element.
-
-        Each `Value` object is created by the `Group.__getattr__` method. The
-        "real" data of the `Value` object is accessed by this method. It is a
-        replacement for a :code:`get()` method.
 
         The return value of this method can also be used as an asynchronous
         context manager, i.e. with :code:`async with` syntax. This can only be

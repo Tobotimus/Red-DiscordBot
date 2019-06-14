@@ -27,9 +27,9 @@ class Filter(commands.Cog):
         }
         default_member_settings = {"filter_count": 0, "next_reset_time": 0}
         default_channel_settings = {"filter": []}
-        self.settings.register_guild(**default_guild_settings)
-        self.settings.register_member(**default_member_settings)
-        self.settings.register_channel(**default_channel_settings)
+        self.settings.guild.register(**default_guild_settings)
+        self.settings.member.register(**default_member_settings)
+        self.settings.channel.register(**default_channel_settings)
         self.register_task = self.bot.loop.create_task(self.register_filterban())
         self.pattern_cache = {}
 

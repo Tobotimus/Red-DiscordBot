@@ -84,7 +84,7 @@ class Audio(commands.Cog):
             vote_percent=0,
         )
 
-        self.config.register_guild(**default_guild)
+        self.config.guild.register(**default_guild)
         self.config.register_global(**default_global)
         self.skip_votes = {}
         self.session = aiohttp.ClientSession()

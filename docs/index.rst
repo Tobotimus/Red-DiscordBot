@@ -39,6 +39,7 @@ Welcome to Red - Discord Bot's documentation!
     framework_datamanager
     framework_downloader
     framework_events
+    framework_exceptions
     framework_i18n
     framework_modlog
     framework_rpc

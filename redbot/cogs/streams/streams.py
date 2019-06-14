@@ -55,9 +55,9 @@ class Streams(commands.Cog):
 
         self.db.register_global(**self.global_defaults)
 
-        self.db.register_guild(**self.guild_defaults)
+        self.db.guild.register(**self.guild_defaults)
 
-        self.db.register_role(**self.role_defaults)
+        self.db.role.register(**self.role_defaults)
 
         self.bot: Red = bot
 
