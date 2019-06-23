@@ -3,6 +3,7 @@
 *.dll
 *.pot
 .data
+Pipfile.lock
 !/tests/cogs/dataconverter/data/**/*.json
 
 ### JetBrains template
