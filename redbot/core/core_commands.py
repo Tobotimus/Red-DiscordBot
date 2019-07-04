@@ -2307,7 +2307,7 @@ class Core(commands.Cog, CoreLogic, translator=_):
                 ).format(prefix=ctx.clean_prefix)
             )
 
-    @checks.admin_or_permissions(manage_channel=True)
+    @checks.admin_or_permissions(manage_channels=True)
     @localeset.command(name="channel")
     async def localeset_channel(self, ctx: commands.Context, locale: Optional[str] = None):
         """Set the channel locale."""

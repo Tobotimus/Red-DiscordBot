@@ -655,6 +655,7 @@ class Cog(CogMixin, commands.Cog):
 
     This includes a metaclass from discord.py
     """
+
     __translator__: Optional[Translator]
 
     # NB: Do not move the inheritcance of this. Keeping the mix of that metaclass

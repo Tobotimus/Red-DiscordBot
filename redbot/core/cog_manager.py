@@ -251,6 +251,17 @@ class CogManager:
                 else:
                     raise
             else:
+                if hasattr(module, "__path__"):
+                    top_pkg_path = Path(module.__file__).parent
+                    for locales_path in top_pkg_path.glob("**/locales"):
+                        if not locales_path.is_dir():
+                            continue
+                        pkg_name = ".".join((
+                            module_name,
+                            *map(str, locales_path.parent.relative_to(top_pkg_path).parts)
+                        ))
+                        Translator._load_locales(pkg_name, locales_path)
+
                 return module
 
         # If we get here, we failed to find the module
