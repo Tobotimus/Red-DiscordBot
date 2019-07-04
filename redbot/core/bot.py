@@ -1,10 +1,11 @@
 import asyncio
 import inspect
-import os
 import logging
+import os
+import re
+import types
 from collections import Counter
 from enum import Enum
-from importlib.machinery import ModuleSpec
 from pathlib import Path
 from typing import Optional, Union, List
 
@@ -284,28 +285,35 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):  # pylint: d
             while pkg_name in curr_pkgs:
                 curr_pkgs.remove(pkg_name)
 
-    async def load_extension(self, spec: ModuleSpec):
-        # NB: this completely bypasses `discord.ext.commands.Bot._load_from_module_spec`
-        name = spec.name.split(".")[-1]
-        if name in self.extensions:
-            raise errors.PackageAlreadyLoaded(spec)
+    # Pattern to match parent package name of cog module (redbot.cogs. or redbot.ext_cogs.)
+    _COG_PACKAGE_RE = re.compile(r"^redbot\.(?:ext_)?cogs\.")
 
-        lib = spec.loader.load_module()
-        if not hasattr(lib, "setup"):
-            del lib
-            raise discord.ClientException(f"extension {name} does not have a setup function")
+    async def load_extension(self, module: Union[str, types.ModuleType]) -> None:
+        # NB: this completely bypasses `discord.ext.commands.Bot._load_from_module_spec`
+        if isinstance(module, str):
+            module: types.ModuleType = self.cog_mgr.load_cog_module(module)
+        name = self._COG_PACKAGE_RE.sub("", module.__name__)
+
+        if name in self.extensions:
+            raise errors.PackageAlreadyLoaded(name)
 
         try:
-            if asyncio.iscoroutinefunction(lib.setup):
-                await lib.setup(self)
-            else:
-                lib.setup(self)
-        except Exception as e:
-            self._remove_module_references(lib.__name__)
-            self._call_module_finalizers(lib, name)
-            raise
+            setup = getattr(module, "setup")
+        except AttributeError:
+            del module
+            raise discord.ClientException(f"extension {name} does not have a setup function")
         else:
-            self._BotBase__extensions[name] = lib
+            try:
+                if asyncio.iscoroutinefunction(setup):
+                    await setup(self)
+                else:
+                    setup(self)
+            except Exception as e:
+                self._remove_module_references(module.__name__)
+                self._call_module_finalizers(module, name)
+                raise
+            else:
+                self._BotBase__extensions[name] = module
 
     def remove_cog(self, cogname: str):
         cog = self.get_cog(cogname)

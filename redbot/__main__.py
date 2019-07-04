@@ -114,6 +114,7 @@ def main():
     )
     loop = asyncio.get_event_loop()
     loop.run_until_complete(red.maybe_update_config())
+    loop.run_until_complete(red.cog_mgr.initialize())
     init_global_checks(red)
     init_events(red, cli_flags)
 
