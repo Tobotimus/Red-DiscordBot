@@ -41,7 +41,7 @@ from ..utils.chat_formatting import box, pagify
 
 __all__ = ["red_help", "RedHelpFormatter"]
 
-T_ = Translator("Help", __file__)
+T_ = Translator(__package__)
 
 HelpTarget = Union[commands.Command, commands.Group, commands.Cog, dpy_commands.bot.BotBase, str]
 

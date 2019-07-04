@@ -5,7 +5,7 @@ from abc import ABC
 import discord
 from redbot.core import Config, modlog, commands
 from redbot.core.bot import Red
-from redbot.core.i18n import Translator, cog_i18n
+from redbot.core.i18n import Translator
 from .casetypes import CASETYPES
 from .events import Events
 from .kickban import KickBanMixin
@@ -15,7 +15,7 @@ from .names import ModInfo
 from .slowmode import Slowmode
 from .settings import ModSettings
 
-_ = T_ = Translator("Mod", __file__)
+_ = T_ = Translator(__package__)
 
 __version__ = "1.0.0"
 
@@ -29,7 +29,6 @@ class CompositeMetaClass(type(commands.Cog), type(ABC)):
     pass
 
 
-@cog_i18n(_)
 class Mod(
     ModSettings,
     Events,
@@ -40,6 +39,7 @@ class Mod(
     Slowmode,
     commands.Cog,
     metaclass=CompositeMetaClass,
+    translator=_,
 ):
     """Moderation tools."""
 

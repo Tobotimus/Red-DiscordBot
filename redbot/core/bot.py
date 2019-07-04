@@ -9,12 +9,11 @@ from pathlib import Path
 from typing import Optional, Union, List
 
 import discord
-import sys
 from discord.ext.commands import when_mentioned_or
 
-from . import Config, i18n, commands, errors
+from . import Config, commands, errors
 from .cog_manager import CogManager
-
+from .i18n import Translator
 from .rpc import RPCMixin
 from .utils import common_filters
 
@@ -81,9 +80,11 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):  # pylint: d
             fuzzy=False,
             disabled_commands=[],
             autoimmune_ids=[],
+            locale=None,
         )
 
-        self.db.register_user(embeds=None)
+        self.db.register_user(embeds=None, locale=None)
+        self.db.register_channel(locale=None)
 
         self.db.init_custom(CUSTOM_GROUPS, 2)
         self.db.register_custom(CUSTOM_GROUPS)
@@ -184,7 +185,6 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):  # pylint: d
         """
 
         indict["owner_id"] = await self.db.owner()
-        i18n.set_locale(await self.db.locale())
 
     async def embed_requested(self, channel, user, command=None) -> bool:
         """
@@ -549,6 +549,46 @@ class RedBase(commands.GroupMixin, commands.bot.BotBase, RPCMixin):  # pylint: d
 
         sends = [wrapped_send(d, content, **kwargs) for d in destinations]
         await asyncio.gather(*sends)
+
+    async def get_locale(
+        self,
+        user: Optional[discord.abc.User] = None,
+        channel: Optional[discord.TextChannel] = None,
+        guild: Optional[discord.Guild] = None,
+    ) -> None:
+        if user is not None:
+            locale = await self.db.user(user).locale()
+            if locale is not None:
+                return locale
+
+        if channel is not None:
+            locale = await self.db.channel(channel).locale()
+            if locale is not None:
+                return locale
+
+        if guild is not None:
+            locale = await self.db.guild(guild).locale()
+            if locale is not None:
+                return locale
+
+        return await self.db.locale()
+
+    async def load_context(
+        self,
+        message: Optional[discord.Message] = None,
+        user: Optional[discord.abc.User] = None,
+        channel: Optional[discord.TextChannel] = None,
+        guild: Optional[discord.Guild] = None,
+    ) -> None:
+        if message is not None:
+            if user is None:
+                user = message.author
+            if channel is None:
+                channel = message.channel
+            if guild is None:
+                guild = message.guild
+
+        Translator.locale_var.set(await self.get_locale(user, channel, guild))
 
 
 class Red(RedBase, discord.AutoShardedClient):

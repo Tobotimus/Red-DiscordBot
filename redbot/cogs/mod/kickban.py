@@ -13,7 +13,7 @@ from .abc import MixinMeta
 from .converters import RawUserIds
 
 log = logging.getLogger("red.mod")
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 
 
 class KickBanMixin(MixinMeta):

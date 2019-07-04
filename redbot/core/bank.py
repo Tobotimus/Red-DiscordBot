@@ -8,7 +8,7 @@ import discord
 from . import Config, errors, commands
 from .i18n import Translator
 
-_ = Translator("Bank API", __file__)
+_ = Translator(__package__)
 
 __all__ = [
     "MAX_BALANCE",

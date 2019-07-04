@@ -18,7 +18,7 @@ from typing import Optional
 import redbot.core
 from redbot.core import Config, commands, checks, bank
 from redbot.core.data_manager import cog_data_path
-from redbot.core.i18n import Translator, cog_i18n
+from redbot.core.i18n import Translator
 from redbot.core.utils.chat_formatting import bold, box, pagify
 from redbot.core.utils.menus import (
     menu,
@@ -34,7 +34,7 @@ from .equalizer import Equalizer
 from .manager import ServerManager
 from .errors import LavalinkDownloadFailed
 
-_ = Translator("Audio", __file__)
+_ = Translator(__package__)
 
 __version__ = "0.0.10"
 __author__ = ["aikaterna"]
@@ -42,8 +42,7 @@ __author__ = ["aikaterna"]
 log = logging.getLogger("red.audio")
 
 
-@cog_i18n(_)
-class Audio(commands.Cog):
+class Audio(commands.Cog, translator=_):
     """Play audio through voice channels."""
 
     _default_lavalink_settings = {

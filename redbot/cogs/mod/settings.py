@@ -5,7 +5,7 @@ from redbot.core.utils.chat_formatting import box
 
 from .abc import MixinMeta
 
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 
 
 class ModSettings(MixinMeta):

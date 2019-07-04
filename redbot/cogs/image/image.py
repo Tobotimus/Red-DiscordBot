@@ -2,14 +2,13 @@ from random import shuffle
 
 import aiohttp
 
-from redbot.core.i18n import Translator, cog_i18n
+from redbot.core.i18n import Translator
 from redbot.core import checks, Config, commands
 
-_ = Translator("Image", __file__)
+_ = Translator(__package__)
 
 
-@cog_i18n(_)
-class Image(commands.Cog):
+class Image(commands.Cog, translator=_):
     """Image related commands."""
 
     default_global = {"imgur_client_id": None}

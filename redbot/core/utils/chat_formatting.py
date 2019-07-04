@@ -6,7 +6,7 @@ import discord
 
 from redbot.core.i18n import Translator
 
-_ = Translator("UtilsChatFormatting", __file__)
+_ = Translator(__package__)
 
 
 def error(text: str) -> str:

@@ -7,7 +7,7 @@ import discord
 from redbot.core import commands
 from redbot.core.i18n import Translator
 
-_ = Translator("PermissionsConverters", __file__)
+_ = Translator(__package__)
 
 MENTION_RE = re.compile(r"^<?(?:(?:@[!&]?)?|#)(\d{15,21})>?$")
 

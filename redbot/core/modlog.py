@@ -38,7 +38,7 @@ _CASES = "CASES"
 _SCHEMA_VERSION = 2
 
 
-_ = Translator("ModLog", __file__)
+_ = Translator(__package__)
 
 
 async def _init():

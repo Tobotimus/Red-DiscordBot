@@ -7,7 +7,7 @@ from redbot.core import i18n, modlog, commands
 from redbot.core.utils.mod import is_mod_or_superior
 from .abc import MixinMeta
 
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 log = logging.getLogger("red.mod")
 
 

@@ -4,7 +4,7 @@ from datetime import timedelta
 from redbot.core import commands, i18n, checks
 from redbot.core.utils.chat_formatting import humanize_timedelta
 
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 
 
 class Slowmode(MixinMeta):

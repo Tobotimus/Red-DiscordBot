@@ -30,7 +30,7 @@ __all__ = [
     "group",
 ]
 
-_ = Translator("commands.commands", __file__)
+_ = Translator(__package__)
 
 
 class CogCommandMixin:
@@ -146,15 +146,27 @@ class Command(CogCommandMixin, commands.Command):
     checks : List[`coroutine function`]
         A list of check predicates which cannot be overridden, unlike
         `Requires.checks`.
-    translator : Translator
-        A translator for this command's help docstring.
 
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._help_override = kwargs.pop("help_override", None)
-        self.translator = kwargs.pop("i18n", None)
+        self._translator = kwargs.pop("i18n", None)
+
+    @property
+    def translator(self) -> Optional[Translator]:
+        """Translator for this command's help string."""
+        if self._translator is None:
+            if self.cog is None:
+                return None
+            else:
+                return self.cog.__translator__
+        return self._translator
+
+    @translator.setter
+    def translator(self, translator_obj: Optional[Translator]) -> None:
+        self._translator = translator_obj
 
     def _ensure_assignment_on_copy(self, other):
         super()._ensure_assignment_on_copy(other)
@@ -173,14 +185,16 @@ class Command(CogCommandMixin, commands.Command):
         """
         if self._help_override is not None:
             return self._help_override
-        if self.translator is None:
-            translator = lambda s: s
-        else:
-            translator = self.translator
+
         command_doc = self.callback.__doc__
         if command_doc is None:
             return ""
-        return inspect.cleandoc(translator(command_doc))
+
+        translator = self.translator
+        if translator is None:
+            return inspect.cleandoc(command_doc)
+        else:
+            return inspect.cleandoc(translator(command_doc))
 
     @help.setter
     def help(self, value):
@@ -573,6 +587,11 @@ class Group(GroupMixin, Command, CogGroupMixin, commands.Group):
 class CogMixin(CogGroupMixin, CogCommandMixin):
     """Mixin class for a cog, intended for use with discord.py's cog class"""
 
+    @classmethod
+    def __init_subclass__(cls, translator: Optional[Translator] = None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.__translator__ = translator
+
     @property
     def help(self):
         doc = self.__doc__
@@ -636,10 +655,10 @@ class Cog(CogMixin, commands.Cog):
 
     This includes a metaclass from discord.py
     """
+    __translator__: Optional[Translator]
 
     # NB: Do not move the inheritcance of this. Keeping the mix of that metaclass
     # seperate gives us more freedoms in several places.
-    pass
 
 
 def command(name=None, cls=Command, **attrs):

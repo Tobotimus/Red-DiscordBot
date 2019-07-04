@@ -23,7 +23,7 @@ YOUTUBE_CHANNELS_ENDPOINT = YOUTUBE_BASE_URL + "/channels"
 YOUTUBE_SEARCH_ENDPOINT = YOUTUBE_BASE_URL + "/search"
 YOUTUBE_VIDEOS_ENDPOINT = YOUTUBE_BASE_URL + "/videos"
 
-_ = Translator("Streams", __file__)
+_ = Translator(__package__)
 
 
 def rnd(url):

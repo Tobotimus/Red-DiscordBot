@@ -11,7 +11,7 @@ from redbot.core.utils.common_filters import (
 from redbot.core.utils.mod import get_audit_reason
 from .abc import MixinMeta
 
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 
 
 class ModInfo(MixinMeta):

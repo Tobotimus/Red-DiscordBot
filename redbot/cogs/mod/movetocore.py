@@ -8,7 +8,7 @@ from redbot.core.utils.chat_formatting import box
 from .abc import MixinMeta
 
 log = logging.getLogger("red.mod")
-_ = i18n.Translator("Mod", __file__)
+_ = i18n.Translator(__package__)
 
 
 # TODO: Empty this to core red.

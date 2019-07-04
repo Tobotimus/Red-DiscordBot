@@ -23,7 +23,7 @@ __all__ = [
     "parse_timedelta",
 ]
 
-_ = Translator("commands.converter", __file__)
+_ = Translator(__package__)
 
 ID_REGEX = re.compile(r"([0-9]{15,21})")
 

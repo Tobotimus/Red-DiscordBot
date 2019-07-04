@@ -164,7 +164,6 @@ def init_events(bot, cli_flags):
 
     @bot.event
     async def on_command_error(ctx, error, unhandled_by_cog=False):
-
         if not unhandled_by_cog:
             if hasattr(ctx.command, "on_error"):
                 return
@@ -173,6 +172,7 @@ def init_events(bot, cli_flags):
                 if commands.Cog._get_overridden_method(ctx.cog.cog_command_error) is not None:
                     return
 
+        await bot.load_context(ctx.message)
         if isinstance(error, commands.MissingRequiredArgument):
             await ctx.send_help()
         elif isinstance(error, commands.ConversionFailure):
@@ -256,6 +256,7 @@ def init_events(bot, cli_flags):
     @bot.event
     async def on_message(message):
         bot.counter["messages_read"] += 1
+        await bot.load_context(message)
         await bot.process_commands(message)
         discord_now = message.created_at
         if (

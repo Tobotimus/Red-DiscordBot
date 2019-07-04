@@ -1,7 +1,7 @@
 from redbot.core.commands import Converter, BadArgument
 from redbot.core.i18n import Translator
 
-_ = Translator("Mod", __file__)
+_ = Translator(__package__)
 
 
 class RawUserIds(Converter):

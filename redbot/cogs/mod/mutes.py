@@ -7,7 +7,7 @@ from redbot.core.utils.chat_formatting import format_perms_list
 from redbot.core.utils.mod import get_audit_reason, is_allowed_by_hierarchy
 from .abc import MixinMeta
 
-T_ = i18n.Translator("Mod", __file__)
+T_ = i18n.Translator(__package__)
 
 _ = lambda s: s
 mute_unmute_issues = {

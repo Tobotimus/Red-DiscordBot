@@ -1,180 +1,120 @@
-import contextlib
-import io
-import os
+import gettext
+import weakref
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Callable, Union, Dict
+from typing import Callable, Dict, ClassVar, List
 
-__all__ = ["get_locale", "set_locale", "reload_locales", "cog_i18n", "Translator"]
+import polib
+from discord.utils import deprecated
 
-_current_locale = "en-US"
+import redbot.core
+from redbot.core import data_manager
 
-WAITING_FOR_MSGID = 1
-IN_MSGID = 2
-WAITING_FOR_MSGSTR = 3
-IN_MSGSTR = 4
+__all__ = ["Translator", "cog_i18n"]
 
-MSGID = 'msgid "'
-MSGSTR = 'msgstr "'
-
-_translators = []
-
-
-def get_locale():
-    return _current_locale
-
-
-def set_locale(locale):
-    global _current_locale
-    _current_locale = locale
-    reload_locales()
-
-
-def reload_locales():
-    for translator in _translators:
-        translator.load_translations()
-
-
-def _parse(translation_file: io.TextIOWrapper) -> Dict[str, str]:
-    """
-    Custom gettext parsing of translation files.
-
-    Parameters
-    ----------
-    translation_file : io.TextIOWrapper
-        An open text file containing translations.
-
-    Returns
-    -------
-    Dict[str, str]
-        A dict mapping the original strings to their translations. Empty
-        translated strings are omitted.
-
-    """
-    step = None
-    untranslated = ""
-    translated = ""
-    translations = {}
-    for line in translation_file:
-        line = line.strip()
-
-        if line.startswith(MSGID):
-            # New msgid
-            if step is IN_MSGSTR and translated:
-                # Store the last translation
-                translations[_unescape(untranslated)] = _unescape(translated)
-            step = IN_MSGID
-            untranslated = line[len(MSGID) : -1]
-        elif line.startswith('"') and line.endswith('"'):
-            if step is IN_MSGID:
-                # Line continuing on from msgid
-                untranslated += line[1:-1]
-            elif step is IN_MSGSTR:
-                # Line continuing on from msgstr
-                translated += line[1:-1]
-        elif line.startswith(MSGSTR):
-            # New msgstr
-            step = IN_MSGSTR
-            translated = line[len(MSGSTR) : -1]
-
-    if step is IN_MSGSTR and translated:
-        # Store the final translation
-        translations[_unescape(untranslated)] = _unescape(translated)
-    return translations
-
-
-def _unescape(string):
-    string = string.replace(r"\\", "\\")
-    string = string.replace(r"\t", "\t")
-    string = string.replace(r"\r", "\r")
-    string = string.replace(r"\n", "\n")
-    string = string.replace(r"\"", '"')
-    return string
-
-
-def get_locale_path(cog_folder: Path, extension: str) -> Path:
-    """
-    Gets the folder path containing localization files.
-
-    :param Path cog_folder:
-        The cog folder that we want localizations for.
-    :param str extension:
-        Extension of localization files.
-    :return:
-        Path of possible localization file, it may not exist.
-    """
-    return cog_folder / "locales" / "{}.{}".format(get_locale(), extension)
+_translator_cache = weakref.WeakValueDictionary()
 
 
 class Translator(Callable[[str], str]):
     """Function to get translated strings at runtime."""
 
-    def __init__(self, name: str, file_location: Union[str, Path, os.PathLike]):
+    locale_var: ClassVar[ContextVar[str]] = ContextVar("cur_locale", default="en-US")
+
+    def __new__(cls, package: str, *args, **kwargs):
+        # We want to prevent duplication of translators with the same domain so we only have one
+        # cache for every domain.
+        try:
+            return _translator_cache[package]
+        except KeyError:
+            _translator_cache[package] = translator = super().__new__(
+                cls, package, *args, **kwargs
+            )
+            return translator
+
+    def __init__(self, package: str):
         """
         Initializes an internationalization object.
 
         Parameters
         ----------
-        name : str
-            Your cog name.
-        file_location : `str` or `pathlib.Path`
-            This should always be ``__file__`` otherwise your localizations
-            will not load.
+        package : str
+            The package containing the `locales` directory.
 
         """
-        self.cog_folder = Path(file_location).resolve().parent
-        self.cog_name = name
-        self.translations = {}
+        self.domain = package
+        self._translations: Dict[str, gettext.NullTranslations] = {}
 
-        _translators.append(self)
-
-        self.load_translations()
-
-    def __call__(self, untranslated: str) -> str:
-        """Translate the given string.
-
-        This will look for the string in the translator's :code:`.pot` file,
-        with respect to the current locale.
-        """
+    @property
+    def translations(self) -> gettext.NullTranslations:
+        locale = self.locale_var.get()
         try:
-            return self.translations[untranslated]
+            return self._translations[locale]
         except KeyError:
-            return untranslated
+            self._translations[locale] = translations = gettext.translation(
+                self.domain,
+                localedir=data_manager.core_data_path() / "localedir",
+                languages=[locale],
+                fallback=True,
+            )
+            return translations
 
-    def load_translations(self):
-        """
-        Loads the current translations.
-        """
-        self.translations = {}
-        locale_path = get_locale_path(self.cog_folder, "po")
-        with contextlib.suppress(IOError, FileNotFoundError):
-            with locale_path.open(encoding="utf-8") as file:
-                self._parse(file)
+    def __call__(self, message: str) -> str:
+        """Translate the given string."""
+        return self.translations.gettext(message)
 
-    def _parse(self, translation_file):
-        self.translations.update(_parse(translation_file))
+    @classmethod
+    def list_available_locales(cls) -> List[str]:
+        ret = [
+            p.name
+            for p in cls._get_localedir().iterdir()
+            if next(p.joinpath("LC_MESSAGES").iterdir(), None)  # if not empty
+        ]
+        if "en-US" not in ret:
+            ret.append("en-US")
+        ret.sort()
+        return ret
 
-    def _add_translation(self, untranslated, translated):
-        untranslated = _unescape(untranslated)
-        translated = _unescape(translated)
-        if translated:
-            self.translations[untranslated] = translated
+    @staticmethod
+    def _get_localedir() -> Path:
+        return data_manager.core_data_path() / "localedir"
+
+    @classmethod
+    def _load_core_locales(cls) -> None:
+        core_pkg_pth = Path(redbot.core.__file__).parent
+        for locales_path in core_pkg_pth.glob("**/locales"):
+            package_path = locales_path.parent
+            package_name = ".".join(
+                map(str, package_path.relative_to(core_pkg_pth.parents[1]).parts)
+            )
+            cls._load_locales(package_name, package_path)
+
+    @classmethod
+    def _load_locales(cls, package_name: str, locales_path: Path) -> None:
+        localedir = cls._get_localedir()
+        for pofile_path in locales_path.glob("*.po"):
+            language = pofile_path.stem
+            mofile_path = localedir / language / "LC_MESSAGES" / f"{package_name}.mo"
+            mofile_path.parent.mkdir(parents=True, exist_ok=True)
+            polib.pofile(str(pofile_path)).save_as_mofile(str(mofile_path))
 
 
-# This import to be down here to avoid circular import issues.
-# This will be cleaned up at a later date
-# noinspection PyPep8
-from . import commands
-
-
+@deprecated("the `translator` argument to Cog.__init_subclass__")
 def cog_i18n(translator: Translator):
-    """Get a class decorator to link the translator to this cog."""
+    """Class decorator to link a translator to a cog.
+
+    .. deprecated:: 3.2
+
+        Use the `translator` argument to ``Cog.__init_subclass__``, like
+        so::
+
+            from redbot.core import commands
+
+            class MyCog(commands.Cog, translator=_):
+                ...
+
+    """
 
     def decorator(cog_class: type):
         cog_class.__translator__ = translator
-        for name, attr in cog_class.__dict__.items():
-            if isinstance(attr, (commands.Group, commands.Command)):
-                attr.translator = translator
-                setattr(cog_class, name, attr)
-        return cog_class
 
     return decorator

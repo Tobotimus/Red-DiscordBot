@@ -1,3 +1,4 @@
 packaging
+polib
 tox
 -e .[docs,mongo,style,test]

@@ -22,6 +22,8 @@ from redbot.core import __version__, modlog, bank, data_manager
 from signal import SIGTERM
 
 # Let's not force this dependency, uvloop is much faster on cpython
+from redbot.core.i18n import Translator
+
 if sys.implementation.name == "cpython":
     try:
         import uvloop
@@ -104,6 +106,8 @@ def main():
     log.debug("====Basic Config====")
     log.debug("Data Path: %s", data_manager._base_data_path())
     log.debug("Storage Type: %s", data_manager.storage_type())
+
+    Translator._load_core_locales()
 
     red = Red(
         cli_flags=cli_flags, description=description, dm_help=None, fetch_offline_members=True

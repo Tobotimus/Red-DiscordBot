@@ -6,13 +6,13 @@ from typing import Generator, Tuple, Iterable, Optional
 import discord
 from discord.ext.commands.view import StringView
 from redbot.core import Config, commands, checks
-from redbot.core.i18n import Translator, cog_i18n
+from redbot.core.i18n import Translator
 from redbot.core.utils.chat_formatting import box
 
 from redbot.core.bot import Red
 from .alias_entry import AliasEntry
 
-_ = Translator("Alias", __file__)
+_ = Translator(__package__)
 
 
 class _TrackingFormatter(Formatter):
@@ -30,8 +30,7 @@ class ArgParseError(Exception):
     pass
 
 
-@cog_i18n(_)
-class Alias(commands.Cog):
+class Alias(commands.Cog, translator=_):
     """Create aliases for commands.
 
     Aliases are alternative names shortcuts for commands. They
