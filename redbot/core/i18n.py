@@ -12,24 +12,11 @@ from redbot.core import data_manager
 
 __all__ = ["Translator", "cog_i18n"]
 
-_translator_cache = weakref.WeakValueDictionary()
-
 
 class Translator(Callable[[str], str]):
     """Function to get translated strings at runtime."""
 
     locale_var: ClassVar[ContextVar[str]] = ContextVar("cur_locale", default="en-US")
-
-    def __new__(cls, package: str, *args, **kwargs):
-        # We want to prevent duplication of translators with the same domain so we only have one
-        # cache for every domain.
-        try:
-            return _translator_cache[package]
-        except KeyError:
-            _translator_cache[package] = translator = super().__new__(
-                cls, package, *args, **kwargs
-            )
-            return translator
 
     def __init__(self, package: str):
         """
