@@ -5,7 +5,7 @@ replace those from the `discord.ext.commands` module.
 """
 import inspect
 import weakref
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple, Union, TYPE_CHECKING, ClassVar
 
 import discord
 from discord.ext import commands
@@ -655,7 +655,8 @@ class Cog(CogMixin, commands.Cog):
 
     This includes a metaclass from discord.py
     """
-    __translator__: Optional[Translator]
+
+    __translator__: ClassVar[Optional[Translator]]
 
     # NB: Do not move the inheritcance of this. Keeping the mix of that metaclass
     # seperate gives us more freedoms in several places.

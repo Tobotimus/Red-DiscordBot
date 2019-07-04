@@ -68,11 +68,12 @@ class Translator(Callable[[str], str]):
     def _load_core_locales(cls) -> None:
         core_pkg_pth = Path(redbot.core.__file__).parent
         for locales_path in core_pkg_pth.glob("**/locales"):
-            package_path = locales_path.parent
+            if not locales_path.is_dir():
+                continue
             package_name = ".".join(
-                map(str, package_path.relative_to(core_pkg_pth.parents[1]).parts)
+                map(str, locales_path.parent.relative_to(core_pkg_pth.parents[1]).parts)
             )
-            cls._load_locales(package_name, package_path)
+            cls._load_locales(package_name, locales_path)
 
     @classmethod
     def _load_locales(cls, package_name: str, locales_path: Path) -> None:
@@ -102,5 +103,6 @@ def cog_i18n(translator: Translator):
 
     def decorator(cog_class: type):
         cog_class.__translator__ = translator
+        return cog_class
 
     return decorator
