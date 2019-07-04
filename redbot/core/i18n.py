@@ -1,5 +1,4 @@
 import gettext
-import weakref
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Callable, Dict, ClassVar, List
