@@ -1,4 +1,5 @@
 packaging
 polib
+redgettext
 tox
 -e .[docs,mongo,style,test]
