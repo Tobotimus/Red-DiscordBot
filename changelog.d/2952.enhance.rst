@@ -1,0 +1,1 @@
+A progress bar is now displayed whilst migrating between backends.

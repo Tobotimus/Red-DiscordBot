@@ -1,0 +1,1 @@
+Added :func:`redbot.core.utils.async_tqdm`, to auto-refresh a tqdm progress bar in slow asynchronous loops.
