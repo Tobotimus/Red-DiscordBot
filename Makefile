@@ -17,15 +17,3 @@ upload_translations:
 	crowdin upload sources
 download_translations:
 	crowdin download
-
-# Dependencies
-bumpdeps:
-	$(PYTHON) tools/bumpdeps.py
-
-# Development environment
-newenv:
-	$(PYTHON) -m venv --clear .venv
-	.venv/bin/pip install -U pip setuptools
-	$(MAKE) syncenv
-syncenv:
-	.venv/bin/pip install -Ur ./tools/dev-requirements.txt

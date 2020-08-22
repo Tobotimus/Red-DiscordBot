@@ -1,23 +1,114 @@
+[tool.poetry]
+name = "Red-DiscordBot"
+version = "3.4.0.dev1"
+description = "A highly customisable Discord bot"
+license = "GPL-3.0"
+readme = "README.md"
+classifiers = [
+    # List at https://pypi.org/classifiers/
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Natural Language :: English",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.8",
+    "Topic :: Communications :: Chat"
+]
+homepage = "https://github.com/Cog-Creators/Red-DiscordBot"
+documentation = "https://docs.discord.red"
+authors = ["Cog-Creators <cogcreators@gmail.com>"]
+packages = [
+    { include = "redbot" },
+]
+
+[tool.poetry.urls]
+"Discord Server" = "https://discord.gg/red"
+"Donate on Patreon" = "https://www.patreon.com/Red_Devs"
+"Issue Tracker" = "https://github.com/Cog-Creators/Red-DiscordBot/issues"
+"Source Code" = "https://github.com/Cog-Creators/Red-DiscordBot"
+"Cog Board" = "https://cogboard.red/"
+
+[tool.poetry.scripts]
+redbot = "redbot.__main__:main"
+redbot-setup = "redbot.setup:run_cli"
+redbot-launcher = "redbot.launcher:main"
+
+[tool.poetry.plugins.pytest11]
+red-discordbot = "redbot.pytest"
+
+[tool.poetry.dependencies]
+python = ">=3.8.1"
+aiohttp = "*"
+aiohttp-json-rpc = "*"
+aiosqlite = "*"
+appdirs = "*"
+apsw-wheels = "*"
+babel = "*"
+click = "*"
+colorama = "*"
+"discord.py" = "*"
+fuzzywuzzy = "*"
+markdown = "*"
+python-levenshtein-wheels = "*"
+pyyaml = "*"
+red-lavalink = "*"
+schema = "*"
+tqdm = "*"
+uvloop = { version = "*", markers = "sys_platform != 'win32' and platform_python_implementation == 'CPython'"}
+
+asyncpg = { version = "*", optional = true }
+black = { version = "*", allow-prereleases = true, optional = true }
+distro = { version = "*", platform = "linux" }
+pylint = { version = "*", optional = true }
+pytest = { version = "*", optional = true }
+pytest-asyncio = { version = "*", optional = true }
+pytest-mock = { version = "*", optional = true }
+sphinx = { version = "*", optional = true }
+sphinx-rtd-theme = { version = "*", optional = true }
+sphinxcontrib-trio = { version = "*", optional = true }
+
+[tool.poetry.dev-dependencies]
+asyncpg = "*"
+black = { version = "*", allow-prereleases = true }
+distro = "*"
+pylint = "*"
+pytest = "*"
+pytest-asyncio = "*"
+pytest-mock = "*"
+sphinx = "*"
+sphinx-rtd-theme = "*"
+sphinxcontrib-trio = "*"
+tox = "*"
+
+[tool.poetry.extras]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "sphinxcontrib-trio"
+]
+postgres = ["asyncpg"]
+style = ["black"]
+test = [
+    "pylint",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock"
+]
+
+
 [tool.black]
-    line-length = 99
-    target-version = ['py38']
-    include = '\.py$'
-    exclude = '''
-    /(
-          \.eggs
-        | \.git
-        | \.hg
-        | \.mypy_cache
-        | \.tox
-        | \.venv
-        | _build
-        | buck-out
-        | build
-        | dist
-        | redbot\/vendored
-    )/
-    '''
+line-length = 99
+target-version = ['py38']
+include = '\.py$'
 
 [tool.pytest.ini_options]
-    minversion = "6.0"
-    addopts = "--import-mode=importlib"
+minversion = "6.0"
+addopts = "--import-mode=importlib"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

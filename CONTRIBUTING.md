@@ -55,27 +55,21 @@ The following requirements must be installed prior to setting up:
  - Python 3.8.1 or greater
  - git
  - pip
+ - [poetry](https://github.com/python-poetry/poetry)
  
 If you're not on Windows, you should also have GNU make installed, and you can optionally install [pyenv](https://github.com/pyenv/pyenv), which can help you run tests for different python versions.
 
 1. Fork and clone the repository to a directory on your local machine.
 2. Open a command line in that directory and execute the following command:
     ```bash
-    make newenv
+    poetry install
     ```
-    Red, its dependencies, and all required development tools, are now installed to a virtual environment located in the `.venv` subdirectory. Red is installed in editable mode, meaning that edits you make to the source code in the repository will be reflected when you run Red.
-3. Activate the new virtual environment with one of the following commands:
-    - Posix:
-        ```bash
-        source .venv/bin/activate
-        ```
-    - Windows:
-        ```powershell
-        .venv\Scripts\activate
-        ```
-    Each time you open a new command line, you should execute this command first. From here onwards, we will assume you are executing commands from within this activated virtual environment.
- 
-**Note:** If you're comfortable with setting up virtual environments yourself and would rather do it manually, just run `pip install -Ur tools/dev-requirements.txt` after setting it up.
+    Red, its dependencies, and all required development tools, are now installed to a virtual environment. To see where the virtual environment is located, run `poetry env info`. Red is installed in editable mode, meaning that edits you make to the source code in the repository will be reflected when you run Red.
+3. Activate the new virtual environment with the following command:
+    ```bash
+    poetry shell
+    ```
+   Activating the virtual environment needs to be done every time you open a new shell. You can instead configure your IDE or pyenv to activate it automatically for you.
 
 ### 4.2 Testing
 We're using [tox](https://github.com/tox-dev/tox) to run all of our tests. It's extremely simple to use, and if you followed the previous section correctly, it is already installed to your virtual environment.
@@ -99,16 +93,14 @@ Use the command `black --help` to see how to use this tool. The full style guide
 ### 4.4 Make
 You may have noticed we have a `Makefile` and a `make.bat` in the top-level directory. For now, you can do a few things with them:
 1. `make reformat`: Reformat all python files in the project with Black
-2. `make stylecheck`: Check if any `.py` files in the project need reformatting
-3. `make newenv`: Set up a new virtual environment in the `.venv` subdirectory, and install Red and its dependencies. If one already exists, it is cleared out and replaced.
-4. `make syncenv`: Sync your environment with Red's latest dependencies.
+2. `make stylecheck`: Check if any `.py` files in the project need reformatting.
 
 The other make recipes are most likely for project maintainers rather than contributors.
 
-You can specify the Python executable used in the make recipes with the `PYTHON` environment variable, e.g. `make PYTHON=/usr/bin/python3.8 newenv`.
+On Posix systems, you can specify the Python executable used in the make recipes with the `PYTHON` environment variable, e.g. `make PYTHON=/usr/bin/python3.8 newenv`.
 
 ### 4.5 Keeping your dependencies up to date
-Whenever you pull from upstream (V3/develop on the main repository) and you notice either of the files `setup.cfg` or `tools/dev-requirements.txt` have been changed, it can often mean some package dependencies have been updated, added or removed. To make sure you're testing and formatting with the most up-to-date versions of our dependencies, run `make syncenv`. You could also simply do `make newenv` to install them to a clean new virtual environment.
+Whenever you pull from upstream (V3/develop on the main repository) and you notice the file `poetry.lock` has been changed, it can often mean some package dependencies have been updated, added or removed. To make sure you're testing and formatting with the most up-to-date versions of our dependencies, run `poetry install`.
 
 ### 4.6 To contribute changes
 
